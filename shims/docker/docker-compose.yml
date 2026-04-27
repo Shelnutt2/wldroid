@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  shims-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../../:/project
+    working_dir: /project
+    command: bash shims/docker/build-all.sh
+    environment:
+      - CROSS_CC=aarch64-linux-gnu-gcc
+      - CC=aarch64-linux-gnu-gcc
+      - STRIP=aarch64-linux-gnu-strip
