@@ -23,6 +23,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // ── Cross-compile proot for Android arm64 ──
@@ -31,7 +35,7 @@ val buildNative by tasks.registering(Exec::class) {
     description = "Cross-compile proot for Android arm64"
     group = "build"
 
-    commandLine("echo", "TODO: native build")
+    commandLine("bash", "${projectDir}/native/build-proot.sh")
 
     onlyIf { !project.hasProperty("skipProot") || project.property("skipProot") != "true" }
 }
@@ -46,9 +50,12 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.commons.compress)
     implementation(libs.xz)
+    implementation(libs.okhttp)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    testImplementation(libs.coroutines.core)
+    testImplementation("org.json:json:20231013")
 }
