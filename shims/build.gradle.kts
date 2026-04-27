@@ -29,7 +29,11 @@ val buildNative by tasks.registering(Exec::class) {
     description = "Cross-compile shim libraries for Android arm64"
     group = "build"
 
-    commandLine("echo", "TODO: native build")
+    workingDir = rootProject.projectDir
+    commandLine("bash", "${rootProject.projectDir}/shims/docker/build-all.sh")
+
+    // Shims output directory
+    environment("OUTPUT_DIR", "${project.buildDir}/outputs/native")
 
     onlyIf { !project.hasProperty("skipShims") || project.property("skipShims") != "true" }
 }
