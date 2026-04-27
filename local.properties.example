@@ -1,0 +1,15 @@
+# local.properties.example — Copy to local.properties and edit.
+#
+# This file is NOT checked into version control.
+# Gradle uses it to locate the Android SDK and (optionally) NDK.
+
+# Required: Path to Android SDK
+sdk.dir=/path/to/Android/Sdk
+
+# Optional: NDK is auto-detected from the SDK directory.
+# Override only if you need a specific NDK version or non-standard location.
+# ndk.dir=/path/to/ndk/28.0.13004108
+
+# Optional: Override the NDK version used for native builds.
+# The build scripts also check ANDROID_NDK_HOME and ANDROID_NDK env vars.
+# ndk.version=28.0.13004108
