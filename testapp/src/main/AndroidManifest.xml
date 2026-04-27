@@ -8,12 +8,12 @@
         android:allowBackup="true"
         android:label="WLDroid Test"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Material3.DynamicColors.DayNight">
+        android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity
             android:name=".TestAppActivity"
             android:exported="true"
-            android:theme="@style/Theme.Material3.DynamicColors.DayNight">
+            android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
