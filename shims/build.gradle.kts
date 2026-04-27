@@ -1,0 +1,47 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "nu.shell.wldroid.shims"
+    compileSdk = libs.versions.compileSdk.get().toInt()
+
+    defaultConfig {
+        minSdk = libs.versions.minSdk.get().toInt()
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+// ── Cross-compile DRM/GBM/EGL/netstub shims for Android arm64 ──
+// CI can pass -PskipShims when the binaries are restored from cache.
+val buildNative by tasks.registering(Exec::class) {
+    description = "Cross-compile shim libraries for Android arm64"
+    group = "build"
+
+    commandLine("echo", "TODO: native build")
+
+    onlyIf { !project.hasProperty("skipShims") || project.property("skipShims") != "true" }
+}
+
+tasks.named("preBuild") {
+    dependsOn(buildNative)
+}
+
+dependencies {
+    implementation(libs.coroutines.android)
+    implementation(libs.coroutines.core)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
+}
