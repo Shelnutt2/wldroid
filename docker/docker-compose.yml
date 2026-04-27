@@ -1,0 +1,51 @@
+# WLDroid Docker Compose — Native build services.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml build
+#   docker compose -f docker/docker-compose.yml run all-build
+#   docker compose -f docker/docker-compose.yml run compositor-build
+#   docker compose -f docker/docker-compose.yml run proot-build
+#   docker compose -f docker/docker-compose.yml run virgl-build
+#   docker compose -f docker/docker-compose.yml run shims-build
+
+services:
+  # Base builder image — other services extend this.
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../:/project
+    working_dir: /project
+    environment:
+      - ANDROID_NDK_HOME=/opt/android/ndk
+
+  # Build all native components in order.
+  all-build:
+    extends: builder
+    command: bash scripts/build-all-native.sh
+
+  # Build only the Wayland compositor.
+  compositor-build:
+    extends: builder
+    command: bash scripts/build-all-native.sh --skip-proot --skip-virgl --skip-shims
+
+  # Build only proot.
+  proot-build:
+    extends: builder
+    command: bash scripts/build-all-native.sh --skip-compositor --skip-virgl --skip-shims
+
+  # Build only virgl.
+  virgl-build:
+    extends: builder
+    command: bash scripts/build-all-native.sh --skip-compositor --skip-proot --skip-shims
+
+  # Build only shim libraries.
+  shims-build:
+    extends: builder
+    command: bash scripts/build-all-native.sh --skip-compositor --skip-proot --skip-virgl
+    environment:
+      - ANDROID_NDK_HOME=/opt/android/ndk
+      - CROSS_CC=aarch64-linux-gnu-gcc
+      - CC=aarch64-linux-gnu-gcc
+      - STRIP=aarch64-linux-gnu-strip
