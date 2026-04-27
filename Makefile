@@ -3,6 +3,7 @@
 # Run `make help` for available targets.
 
 .PHONY: all native build test test-native test-kotlin test-instrumented test-all test-ui \
+        test-gbm-shim test-drm-shim test-native-all \
         clean docker-build setup-submodules setup-meson setup-emulator \
         emulator-start emulator-stop emulator-status check-env help
 
@@ -54,6 +55,25 @@ test-native: ## Run native unit tests (Meson test)
 	@echo ""
 	@echo "=== GBM shim native tests ==="
 	cd shims/native/gbm-shim && meson test -C builddir 2>/dev/null || echo "  (skipped — no build dir)"
+
+test-gbm-shim: ## Run GBM shim native tests (host, with AHB mocks)
+	cd shims/native/gbm-shim && \
+		meson setup builddir -Dtests=true --reconfigure 2>/dev/null || \
+		meson setup builddir -Dtests=true && \
+		meson test -C builddir --print-errorlogs
+
+test-drm-shim: ## Run DRM shim native tests (on-device only — requires Android)
+	cd shims/native/drm-shim && \
+		meson setup builddir -Dtests=true --reconfigure 2>/dev/null || \
+		meson setup builddir -Dtests=true && \
+		meson test -C builddir --print-errorlogs
+
+test-native-all: ## Run all native tests (compositor + shims)
+	@echo "=== Compositor native tests ==="
+	@cd compositor/native && meson test -C builddir --print-errorlogs 2>/dev/null || echo "  (skipped — no build dir)"
+	@echo ""
+	@echo "=== GBM shim native tests ==="
+	@$(MAKE) --no-print-directory test-gbm-shim
 
 test-kotlin: ## Run Kotlin unit tests
 	./gradlew test \
@@ -142,6 +162,7 @@ clean: ## Clean all build artifacts
 	rm -rf proot/build/native
 	rm -rf virgl/native/build
 	rm -rf shims/build/outputs/native
+	rm -rf shims/native/gbm-shim/builddir shims/native/drm-shim/builddir
 	rm -rf compositor/src/main/jniLibs
 	rm -rf proot/src/main/jniLibs
 	rm -rf virgl/src/main/jniLibs
