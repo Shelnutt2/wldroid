@@ -30,13 +30,17 @@ static void test_create_abgr8888(void) {
     gbm_bo_destroy(bo);
 }
 
-static void test_create_xrgb8888_unsupported(void) {
+static void test_create_xrgb8888_supported(void) {
     setup();
-    /* XRGB8888 was removed from the format table (R/B channel swap). */
+    /* XRGB8888 re-added — channel swap harmless in zero-copy GPU path. */
     struct gbm_bo *bo = gbm_bo_create(g_dev, 128, 64,
                                        GBM_FORMAT_XRGB8888,
                                        GBM_BO_USE_RENDERING);
-    ASSERT_NULL(bo);
+    ASSERT_NOT_NULL(bo);
+    ASSERT_EQ(gbm_bo_get_width(bo), 128u);
+    ASSERT_EQ(gbm_bo_get_height(bo), 64u);
+    ASSERT_EQ(gbm_bo_get_format(bo), GBM_FORMAT_XRGB8888);
+    gbm_bo_destroy(bo);
 }
 
 static void test_create_xbgr8888(void) {
@@ -345,7 +349,7 @@ int main(void) {
     printf("=== test_gbm_bo ===\n");
 
     RUN_TEST(test_create_abgr8888);
-    RUN_TEST(test_create_xrgb8888_unsupported);
+    RUN_TEST(test_create_xrgb8888_supported);
     RUN_TEST(test_create_xbgr8888);
     RUN_TEST(test_create_rgb565);
     RUN_TEST(test_create_r8);
