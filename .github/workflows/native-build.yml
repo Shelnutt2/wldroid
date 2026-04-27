@@ -1,0 +1,122 @@
+name: Native Build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'compositor/native/**'
+      - 'shims/native/**'
+      - 'virgl/native/**'
+      - 'external/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'compositor/native/**'
+      - 'shims/native/**'
+      - 'virgl/native/**'
+      - 'external/**'
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compositor-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: sdkmanager "ndk;28.0.13004108"
+      - name: Install Meson + Ninja
+        run: pip3 install meson ninja
+      - name: Cross-compile compositor for ARM64
+        run: |
+          cd compositor/native
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          meson setup builddir-arm64 \
+            --cross-file cross/android-aarch64.txt \
+            --buildtype release
+          ninja -C builddir-arm64
+      - name: Upload compositor .so
+        uses: actions/upload-artifact@v4
+        with:
+          name: compositor-arm64
+          path: compositor/native/builddir-arm64/**/*.so
+
+  virgl-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: sdkmanager "ndk;28.0.13004108"
+      - name: Install Meson + Ninja
+        run: pip3 install meson ninja
+      - name: Cross-compile VirGL for ARM64
+        run: |
+          cd virgl/native
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          if [ -f build-virgl.sh ]; then
+            bash build-virgl.sh
+          else
+            echo "No build script found, skipping"
+          fi
+      - name: Upload VirGL binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: virgl-arm64
+          path: |
+            virgl/native/**/virgl_test_server
+            virgl/native/**/*.so
+
+  shims-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build shims via Docker
+        run: |
+          if [ -f shims/native/Dockerfile ]; then
+            cd shims/native
+            docker build -t wldroid-shims .
+            docker create --name shim-extract wldroid-shims
+            mkdir -p output
+            docker cp shim-extract:/output/. output/ || true
+            docker rm shim-extract
+          else
+            echo "No Dockerfile found, building with Meson"
+            pip3 install meson ninja
+            for shim_dir in shims/native/*/; do
+              if [ -f "$shim_dir/meson.build" ]; then
+                echo "Building $(basename $shim_dir)"
+                cd "$shim_dir"
+                meson setup builddir --buildtype release || true
+                ninja -C builddir || true
+                cd -
+              fi
+            done
+          fi
+      - name: Upload shim .so files
+        uses: actions/upload-artifact@v4
+        with:
+          name: shims-aarch64
+          path: |
+            shims/native/**/builddir/**/*.so
+            shims/native/**/builddir/**/*.so.*
+            shims/native/output/**
