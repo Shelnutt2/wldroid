@@ -21,18 +21,6 @@ endif
 # Meson subprojects don't expose their source dir programmatically, so we hardcode it.
 wlroots_protocol_dir = meson.project_build_root() / 'subprojects' / 'wlroots-0.19.2' / 'protocol'
 
-# ---- Android system libraries (from NDK sysroot) ----
-cc = meson.get_compiler('c')
-android_libs = [
-  cc.find_library('android'),
-  cc.find_library('log'),
-]
-
-# ---- GPU rendering libraries (optional — GLES2 renderer path) ----
-egl_dep = cc.find_library('EGL', required: false)
-glesv2_dep = cc.find_library('GLESv2', required: false)
-nativewindow_dep = cc.find_library('nativewindow', required: false)
-
 # ---- Text input protocol generation ----
 wayland_scanner_prog = find_program('wayland-scanner', native: true)
 wayland_protos_dep = dependency('wayland-protocols')
@@ -80,11 +68,25 @@ compositor_sources = files(
   'test_client.c',
 )
 
-# ---- Shared library ----
-shared_library('wldroid-compositor',
-  compositor_sources, text_input_v3_c, text_input_v3_h,
-  xdg_shell_client_c, xdg_shell_client_h,
-  dependencies: [wlroots, wayland_sv, wayland_cl, xkbcommon, pixman, drm, xcb] + android_libs + [egl_dep, glesv2_dep, nativewindow_dep],
-  c_args: ['-DWLR_USE_UNSTABLE', '-I' + wlroots_protocol_dir],
-  install: true,
-)
+# ---- Shared library (Android cross-compile only) ----
+# The shared library links Android NDK libraries (-landroid, -llog, -lnativewindow, etc.)
+# that are not available on host. Host builds only need protocol targets for tests.
+if meson.is_cross_build()
+  cc = meson.get_compiler('c')
+  android_libs = [
+    cc.find_library('android'),
+    cc.find_library('log'),
+  ]
+
+  egl_dep = cc.find_library('EGL', required: false)
+  glesv2_dep = cc.find_library('GLESv2', required: false)
+  nativewindow_dep = cc.find_library('nativewindow', required: false)
+
+  shared_library('wldroid-compositor',
+    compositor_sources, text_input_v3_c, text_input_v3_h,
+    xdg_shell_client_c, xdg_shell_client_h,
+    dependencies: [wlroots, wayland_sv, wayland_cl, xkbcommon, pixman, drm, xcb] + android_libs + [egl_dep, glesv2_dep, nativewindow_dep],
+    c_args: ['-DWLR_USE_UNSTABLE', '-I' + wlroots_protocol_dir],
+    install: true,
+  )
+endif
