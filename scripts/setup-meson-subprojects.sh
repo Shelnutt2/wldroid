@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # setup-meson-subprojects.sh — Create symlinks from compositor/native/subprojects/
-# to external/ git submodules so Meson can find them.
+# to external/ git submodules for forked dependencies.
+#
+# Upstream dependencies are handled by Meson .wrap files committed in
+# compositor/native/subprojects/ — only the 3 forks need symlinks.
 #
 # This script is idempotent and safe to re-run.
 # Call before `meson setup` in the compositor native build.
@@ -17,43 +20,11 @@ EXTERNAL_DIR="$PROJECT_ROOT/external"
 # compositor/native/subprojects/ → ../../../external/
 RELATIVE_PREFIX="../../../external"
 
-# Dependencies used by the compositor Meson build.
-# These map: subprojects/<name> → external/<name>
-COMPOSITOR_DEPS=(
-    wlroots
-    wayland
-    wayland-protocols
-    libdrm
-    pixman
-    libxkbcommon
-    libffi
-    expat
-    xcb-proto
-    libxcb
-    libxau
-    xorgproto
-    xcb-util-wm
-    libepoxy
-)
+# Only forked dependencies need symlinks.
+# All upstream deps are managed by Meson WrapDB .wrap files.
+FORK_DEPS=(wlroots virglrenderer proot)
 
-# Dependencies used by the virgl Meson build (virglrenderer + its deps).
-# The virgl module has its own native build, but shares the same external/ deps.
-VIRGL_DEPS=(
-    virglrenderer
-    libepoxy
-    libdrm
-)
-
-# Dependencies used by the proot build.
-PROOT_DEPS=(
-    proot
-    talloc
-)
-
-# Combine all unique deps
-ALL_DEPS=($(printf '%s\n' "${COMPOSITOR_DEPS[@]}" "${VIRGL_DEPS[@]}" "${PROOT_DEPS[@]}" | sort -u))
-
-echo "Setting up Meson subproject symlinks..."
+echo "Setting up Meson subproject symlinks for forked deps..."
 echo "  Subprojects dir: $SUBPROJECTS_DIR"
 echo "  External dir:    $EXTERNAL_DIR"
 echo ""
@@ -64,7 +35,7 @@ created=0
 skipped=0
 errors=0
 
-for dep in "${ALL_DEPS[@]}"; do
+for dep in "${FORK_DEPS[@]}"; do
     target="$RELATIVE_PREFIX/$dep"
     link="$SUBPROJECTS_DIR/$dep"
 
@@ -72,6 +43,7 @@ for dep in "${ALL_DEPS[@]}"; do
         # Symlink already exists — verify it points to the right place
         existing_target="$(readlink "$link")"
         if [ "$existing_target" = "$target" ]; then
+            echo "  OK: $dep (already exists)"
             skipped=$((skipped + 1))
             continue
         else
@@ -91,11 +63,3 @@ done
 
 echo ""
 echo "Done: $created created, $skipped already existed, $errors errors"
-
-# Also create a packagefiles symlink if source packagefiles exist
-# (for Meson wrap overlay files like meson.build overrides)
-PACKAGEFILES_DIR="$SUBPROJECTS_DIR/packagefiles"
-if [ ! -e "$PACKAGEFILES_DIR" ]; then
-    mkdir -p "$PACKAGEFILES_DIR"
-    echo "Created packagefiles directory: $PACKAGEFILES_DIR"
-fi

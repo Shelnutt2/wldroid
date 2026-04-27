@@ -1,0 +1,14 @@
+[wrap-file]
+directory = wayland-1.24.0
+source_url = https://gitlab.freedesktop.org/wayland/wayland/-/releases/1.24.0/downloads/wayland-1.24.0.tar.xz
+source_filename = wayland-1.24.0.tar.xz
+source_hash = 82892487a01ad67b334eca83b54317a7c86a03a89cfadacfef5211f11a5d0536
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/wayland_1.24.0-2/wayland-1.24.0.tar.xz
+wrapdb_version = 1.24.0-2
+
+[provide]
+dependency_names = wayland-client, wayland-cursor, wayland-egl, wayland-server
+# NOTE: Do NOT add program_names = wayland-scanner here.
+# With --wrap-mode=forcefallback, Meson would cross-compile the scanner for
+# aarch64-android (the target), producing a binary that can't run on the x86_64
+# build host. The host scanner is provided via --native-file instead (see build.sh).

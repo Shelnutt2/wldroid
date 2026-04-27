@@ -1,7 +1,9 @@
-# External Native Dependencies
+# External Native Dependencies — Forked Repositories
 
-This directory contains git submodules for all native C/C++ dependencies used
-by the WLDroid compositor, VirGL server, and proot modules.
+This directory contains git submodules **only** for the 3 forked native
+dependencies that carry Android-specific patches. All upstream (unmodified)
+dependencies are managed by Meson WrapDB `.wrap` files committed in
+`compositor/native/subprojects/`.
 
 ## Layout
 
@@ -9,31 +11,20 @@ by the WLDroid compositor, VirGL server, and proot modules.
 external/
 ├── wlroots/          # Fork — Wayland compositor library (android-0.19.2)
 ├── virglrenderer/    # Fork — Virtual OpenGL renderer (android-v1.1.0)
-├── proot/            # Fork — Proot user-space chroot (android)
-├── wayland/          # Upstream — Wayland protocol library
-├── wayland-protocols/# Upstream — Wayland protocol definitions
-├── libdrm/           # Upstream — Direct Rendering Manager library
-├── pixman/           # Upstream — Pixel manipulation library
-├── libxkbcommon/     # Upstream — XKB keymap compiler
-├── libffi/           # Upstream — Foreign function interface
-├── expat/            # Upstream — XML parser (wayland dep)
-├── xcb-proto/        # Upstream — XCB protocol descriptions
-├── libxcb/           # Upstream — X11 C bindings
-├── libxau/           # Upstream — X11 authorization
-├── xorgproto/        # Upstream — X.Org protocol headers
-├── xcb-util-wm/     # Upstream — XCB window manager utilities
-├── libepoxy/         # Upstream — GL dispatch library
-└── talloc/           # Upstream — Hierarchical memory allocator (proot dep)
+└── proot/            # Fork — Proot user-space chroot (android)
 ```
 
-## Forked vs Upstream
+See [FORKS.md](FORKS.md) for full patch documentation.
 
-**3 forked repositories** contain Android-specific patches that have not been
-accepted upstream. These track named branches (e.g. `android-0.19.2`) in
-the `Shelnutt2` GitHub org. See [FORKS.md](FORKS.md) for patch details.
+## Why only forks?
 
-**14 upstream repositories** are pinned to specific release tags via the
-submodule commit SHA. No local patches are applied to these.
+The 3 forked repositories contain Android-specific patches that have not been
+accepted upstream. These track named branches (e.g. `android-0.19.2`) in the
+`Shelnutt2` GitHub org and must be kept as git submodules.
+
+All other upstream dependencies (wayland, libdrm, pixman, libxkbcommon, etc.)
+are pinned via Meson `.wrap` files in `compositor/native/subprojects/`. Meson
+downloads and builds them automatically — no submodules needed.
 
 ## Initialization
 
@@ -52,27 +43,28 @@ git submodule update --init --recursive
 ## Meson Integration
 
 The compositor's Meson build expects dependencies in `compositor/native/subprojects/`.
-Run the symlink setup script to bridge this directory to the submodules:
+Run the setup script to create symlinks for the 3 forks:
 
 ```bash
 ./scripts/setup-meson-subprojects.sh
 ```
 
 This creates symlinks like `compositor/native/subprojects/wlroots` →
-`../../../external/wlroots`.
+`../../../external/wlroots`. Upstream deps are resolved from `.wrap` files
+automatically by `meson setup`.
 
-## Updating a Dependency
+## Updating Dependencies
 
-To update an upstream dependency to a new tag:
+**Forked deps** — update the fork branch first, then update the submodule pointer:
 
 ```bash
-cd external/<dep>
-git fetch
-git checkout <new-tag>
+cd external/wlroots
+git fetch origin
+git checkout <new-branch>
 cd ../..
-git add external/<dep>
-git commit -m "deps: update <dep> to <new-tag>"
+git add external/wlroots
+git commit -m "deps: update wlroots fork to <new-branch>"
 ```
 
-For forked dependencies, update the fork branch first, then update the
-submodule pointer.
+**Upstream deps** — edit the `.wrap` file in `compositor/native/subprojects/`
+to point at the new version and update the hash.
