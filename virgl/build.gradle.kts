@@ -23,6 +23,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // ── Cross-compile virgl_test_server for Android arm64 ──
@@ -31,7 +35,8 @@ val buildNative by tasks.registering(Exec::class) {
     description = "Cross-compile virgl_test_server for Android arm64"
     group = "build"
 
-    commandLine("echo", "TODO: native build")
+    workingDir = project.projectDir
+    commandLine("bash", "${project.projectDir}/native/build-virgl.sh")
 
     onlyIf { !project.hasProperty("skipVirgl") || project.property("skipVirgl") != "true" }
 }
@@ -49,4 +54,5 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    testImplementation(libs.coroutines.test)
 }
