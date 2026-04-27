@@ -55,3 +55,14 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.coroutines.test)
 }
+// Instrumented test dependencies (Compose UI testing)
+dependencies {
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+}
+

@@ -63,3 +63,12 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.truth)
 }
+// Instrumented test dependencies
+dependencies {
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.coroutines.test)
+}
+
