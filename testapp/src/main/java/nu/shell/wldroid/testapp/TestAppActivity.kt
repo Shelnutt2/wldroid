@@ -28,6 +28,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import nu.shell.wldroid.testapp.navigation.TestAppNavHost
 import nu.shell.wldroid.testapp.navigation.TestAppRoute
+import nu.shell.wldroid.ui.theme.WldroidTheme
 
 @AndroidEntryPoint
 class TestAppActivity : ComponentActivity() {
@@ -35,7 +36,7 @@ class TestAppActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            WldroidTheme {
                 TestAppContent()
             }
         }
