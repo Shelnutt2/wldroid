@@ -26,6 +26,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // ── Cross-compile the Wayland compositor via Meson/Ninja ──
