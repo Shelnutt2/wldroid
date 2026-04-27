@@ -1,0 +1,8 @@
+[wrap-file]
+directory = xorgproto-2024.1
+source_url = https://xorg.freedesktop.org/archive/individual/proto/xorgproto-2024.1.tar.xz
+source_filename = xorgproto-2024.1.tar.xz
+source_hash = 372225fd40815b8423547f5d890c5debc72e88b91088fbfb13158c20495ccb59
+
+[provide]
+xorgproto = ext_xorgproto
