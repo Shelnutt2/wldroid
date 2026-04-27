@@ -34,7 +34,13 @@ val buildNative by tasks.registering(Exec::class) {
     description = "Cross-compile the Wayland compositor for Android arm64"
     group = "build"
 
-    commandLine("echo", "TODO: native build")
+    workingDir = project.projectDir
+    commandLine("bash", "${project.projectDir}/native/scripts/build.sh")
+
+    // Forward NDK location to the build script
+    environment("ANDROID_NDK_HOME", providers.environmentVariable("ANDROID_NDK_HOME").orElse(
+        providers.environmentVariable("ANDROID_NDK")
+    ).orElse("").get())
 
     onlyIf { !project.hasProperty("skipCompositor") || project.property("skipCompositor") != "true" }
 }
