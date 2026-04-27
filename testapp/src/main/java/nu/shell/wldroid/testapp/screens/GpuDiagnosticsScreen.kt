@@ -15,7 +15,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -41,6 +40,7 @@ import nu.shell.wldroid.virgl.GpuModeStore
 import nu.shell.wldroid.virgl.VirglConfig
 import nu.shell.wldroid.virgl.VirglSession
 import nu.shell.wldroid.virgl.VirglState
+import nu.shell.wldroid.ui.GpuModeSelector
 
 @HiltViewModel
 class GpuDiagnosticsViewModel @Inject constructor(
@@ -147,36 +147,32 @@ fun GpuDiagnosticsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // GPU mode selector
+        // GPU mode selector from :ui
+        GpuModeSelector(
+            currentMode = gpuModeOverride ?: detectedMode,
+            availableModes = GpuMode.entries,
+            onModeSelected = { mode -> viewModel.setGpuModeOverride(mode) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        // Test buttons and results for each mode
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("GPU Mode Override", style = MaterialTheme.typography.titleMedium)
+                Text("Mode Testing", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 GpuMode.entries.forEach { mode ->
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = gpuModeOverride == mode,
-                            onClick = { viewModel.setGpuModeOverride(mode) },
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(mode.displayName, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                mode.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // Test button
+                        Text(mode.displayName, style = MaterialTheme.typography.bodyMedium)
                         OutlinedButton(
                             onClick = { viewModel.testGpuMode(mode) },
                         ) {
                             Text("Test")
                         }
                     }
-                    // Show test result
                     testResults[mode]?.let { result ->
                         Text(
                             text = "  → $result",
@@ -185,7 +181,7 @@ fun GpuDiagnosticsScreen(
                                 MaterialTheme.colorScheme.primary
                             else
                                 MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(start = 48.dp, bottom = 4.dp),
+                            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
                         )
                     }
                 }

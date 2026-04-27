@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -38,6 +37,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import nu.shell.wldroid.shims.ShimConfig
 import nu.shell.wldroid.shims.ShimExtractor
+import nu.shell.wldroid.ui.SetupOverlay
+import nu.shell.wldroid.ui.SetupState
 import nu.shell.wldroid.virgl.GpuMode
 
 @HiltViewModel
@@ -193,26 +194,12 @@ fun ShimTestScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
-                if (state.error != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = state.error!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.extractShims() },
                         enabled = !state.extracting,
                     ) {
-                        if (state.extracting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.padding(end = 8.dp),
-                            )
-                        }
                         Text(if (state.extracted) "Re-extract" else "Extract Shims")
                     }
                     if (state.extracted) {
@@ -223,6 +210,21 @@ fun ShimTestScreen(
                 }
             }
         }
+
+        // SetupOverlay from :ui — shows progress/error overlay during extraction
+        val setupState = when {
+            state.extracting -> SetupState.Installing("Extracting shim libraries…")
+            state.error != null -> SetupState.Error(
+                message = state.error!!,
+                canRetry = true,
+            )
+            else -> SetupState.Idle
+        }
+        SetupOverlay(
+            state = setupState,
+            onRetry = { viewModel.extractShims() },
+            onCancel = { viewModel.clearShims() },
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
