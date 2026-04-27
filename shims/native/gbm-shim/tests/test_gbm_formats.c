@@ -42,16 +42,22 @@ static void test_unsupported_returns_zero(void) {
     ASSERT_EQ(gbm_format_bpp(0xDEADBEEF), 0u);
 }
 
-static void test_argb8888_unsupported(void) {
-    /* ARGB8888 was intentionally removed — R/B channel swap. */
-    ASSERT_EQ(gbm_to_ahb_format(GBM_FORMAT_ARGB8888), 0u);
-    ASSERT_EQ(gbm_format_bpp(GBM_FORMAT_ARGB8888), 0u);
+static void test_argb8888_supported(void) {
+    /*
+     * ARGB8888 was re-added: in the zero-copy GPU path the format label is
+     * only used for AHB allocation sizing, not CPU-side reinterpretation,
+     * so the R/B channel swap is harmless.  See gbm_ahb_formats.c.
+     */
+    ASSERT_EQ(gbm_to_ahb_format(GBM_FORMAT_ARGB8888),
+              (uint32_t)AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM);
+    ASSERT_EQ(gbm_format_bpp(GBM_FORMAT_ARGB8888), 4u);
 }
 
-static void test_xrgb8888_unsupported(void) {
-    /* XRGB8888 was intentionally removed — R/B channel swap. */
-    ASSERT_EQ(gbm_to_ahb_format(GBM_FORMAT_XRGB8888), 0u);
-    ASSERT_EQ(gbm_format_bpp(GBM_FORMAT_XRGB8888), 0u);
+static void test_xrgb8888_supported(void) {
+    /* XRGB8888 re-added for the same reason as ARGB8888. */
+    ASSERT_EQ(gbm_to_ahb_format(GBM_FORMAT_XRGB8888),
+              (uint32_t)AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
+    ASSERT_EQ(gbm_format_bpp(GBM_FORMAT_XRGB8888), 4u);
 }
 
 static void test_rgb888_unsupported(void) {
@@ -110,8 +116,8 @@ int main(void) {
     RUN_TEST(test_abgr16161616f_maps_correctly);
     RUN_TEST(test_xbgr16161616f_maps_correctly);
     RUN_TEST(test_unsupported_returns_zero);
-    RUN_TEST(test_argb8888_unsupported);
-    RUN_TEST(test_xrgb8888_unsupported);
+    RUN_TEST(test_argb8888_supported);
+    RUN_TEST(test_xrgb8888_supported);
     RUN_TEST(test_rgb888_unsupported);
     RUN_TEST(test_gr88_unsupported);
     RUN_TEST(test_bpp_correctness);

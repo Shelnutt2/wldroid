@@ -65,9 +65,12 @@ static void test_format_supported_known(void) {
 static void test_format_supported_excluded(void) {
     struct gbm_device *dev = gbm_create_device(-1);
     ASSERT_NOT_NULL(dev);
-    /* ARGB/XRGB/RGB888/GR88 were removed due to channel swap / bpp bugs. */
-    ASSERT(!gbm_device_is_format_supported(dev, GBM_FORMAT_ARGB8888, 0));
-    ASSERT(!gbm_device_is_format_supported(dev, GBM_FORMAT_XRGB8888, 0));
+    /*
+     * ARGB8888/XRGB8888 were re-added to the format table (channel swap is
+     * harmless in the zero-copy GPU path).  RGB888 and GR88 remain excluded.
+     */
+    ASSERT(gbm_device_is_format_supported(dev, GBM_FORMAT_ARGB8888, 0));
+    ASSERT(gbm_device_is_format_supported(dev, GBM_FORMAT_XRGB8888, 0));
     ASSERT(!gbm_device_is_format_supported(dev, GBM_FORMAT_RGB888, 0));
     ASSERT(!gbm_device_is_format_supported(dev, GBM_FORMAT_GR88, 0));
     gbm_device_destroy(dev);
