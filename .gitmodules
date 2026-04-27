@@ -1,78 +1,51 @@
-# Native dependency submodules for WLDroid
-# See external/README.md for documentation
-# See external/FORKS.md for fork patch details
-
-# === Forked repositories (with Android patches) ===
-
 [submodule "external/wlroots"]
 	path = external/wlroots
 	url = https://github.com/Shelnutt2/wlroots.git
 	branch = android-0.19.2
-
 [submodule "external/virglrenderer"]
 	path = external/virglrenderer
 	url = https://github.com/Shelnutt2/virglrenderer.git
 	branch = android-v1.1.0
-
 [submodule "external/proot"]
 	path = external/proot
 	url = https://github.com/Shelnutt2/proot.git
 	branch = android
-
-# === Upstream repositories (pinned to release tags) ===
-
 [submodule "external/wayland"]
 	path = external/wayland
 	url = https://gitlab.freedesktop.org/wayland/wayland.git
-
 [submodule "external/wayland-protocols"]
 	path = external/wayland-protocols
 	url = https://gitlab.freedesktop.org/wayland/wayland-protocols.git
-
 [submodule "external/libdrm"]
 	path = external/libdrm
 	url = https://gitlab.freedesktop.org/mesa/drm.git
-
 [submodule "external/pixman"]
 	path = external/pixman
 	url = https://gitlab.freedesktop.org/pixman/pixman.git
-
-[submodule "external/libxkbcommon"]
-	path = external/libxkbcommon
-	url = https://github.com/xkbcommon/libxkbcommon.git
-
 [submodule "external/libffi"]
 	path = external/libffi
 	url = https://github.com/libffi/libffi.git
-
 [submodule "external/expat"]
 	path = external/expat
 	url = https://github.com/libexpat/libexpat.git
-
-[submodule "external/xcb-proto"]
-	path = external/xcb-proto
-	url = https://gitlab.freedesktop.org/xorg/proto/xcbproto.git
-
-[submodule "external/libxcb"]
-	path = external/libxcb
-	url = https://gitlab.freedesktop.org/xorg/lib/libxcb.git
-
-[submodule "external/libxau"]
-	path = external/libxau
-	url = https://gitlab.freedesktop.org/xorg/lib/libXau.git
-
-[submodule "external/xorgproto"]
-	path = external/xorgproto
-	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto.git
-
-[submodule "external/xcb-util-wm"]
-	path = external/xcb-util-wm
-	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-wm.git
-
 [submodule "external/libepoxy"]
 	path = external/libepoxy
 	url = https://github.com/anholt/libepoxy.git
-
-[submodule "external/talloc"]
-	path = external/talloc
-	url = https://github.com/nicowilliams/talloc.git
+[submodule "external/libxkbcommon"]
+	path = external/libxkbcommon
+	url = https://github.com/xkbcommon/libxkbcommon.git
+[submodule "external/xcb-proto"]
+	path = external/xcb-proto
+	url = https://gitlab.freedesktop.org/xorg/proto/xcbproto.git
+[submodule "external/libxcb"]
+	path = external/libxcb
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcb.git
+[submodule "external/libxau"]
+	path = external/libxau
+	url = https://gitlab.freedesktop.org/xorg/lib/libXau.git
+[submodule "external/xorgproto"]
+	path = external/xorgproto
+	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto.git
+[submodule "external/xcb-util-wm"]
+	path = external/xcb-util-wm
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-wm.git
