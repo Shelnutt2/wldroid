@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import java.io.File
-import java.io.FileInputStream
-
 /**
  * Detects GPU capabilities and determines the best available rendering mode.
  *
@@ -45,11 +43,7 @@ class GpuCapabilityDetector(
     }
 
     /** Whether `/dev/kgsl-3d0` is accessible (Qualcomm KGSL driver). */
-    fun isKgslAccessible(): Boolean = try {
-        FileInputStream("/dev/kgsl-3d0").use { true }
-    } catch (_: Exception) {
-        false
-    }
+    fun isKgslAccessible(): Boolean = File("/dev/kgsl-3d0").canRead()
 
     /**
      * Check if the device has a Qualcomm Adreno GPU by reading

@@ -37,7 +37,7 @@ val buildNative by tasks.registering(Exec::class) {
     commandLine("bash", "${rootProject.projectDir}/shims/docker/build-all.sh")
 
     // Shims output directory
-    environment("OUTPUT_DIR", "${project.buildDir}/outputs/native")
+    environment("OUTPUT_DIR", "${project.layout.buildDirectory.get().asFile}/outputs/native")
 
     onlyIf { !project.hasProperty("skipShims") || project.property("skipShims") != "true" }
 }
