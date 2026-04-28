@@ -17,7 +17,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +28,6 @@ import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import nu.shell.wldroid.compositor.CompositorConfig
-import nu.shell.wldroid.compositor.CompositorSession
 import nu.shell.wldroid.compositor.CompositorState
 import nu.shell.wldroid.ui.CompositorSurface
 import nu.shell.wldroid.ui.InputMode
@@ -38,19 +36,22 @@ import nu.shell.wldroid.ui.InputMode
 class CompositorTestViewModel @Inject constructor(
     val compositorConfig: CompositorConfig,
 ) : ViewModel() {
-    val session = CompositorSession(compositorConfig)
-    val state get() = session.state
-    val clientCount get() = session.clientCount
-    val socketPath get() = session.socketPath
+    private val _compositorState = mutableStateOf(CompositorState.IDLE)
+    val compositorState: androidx.compose.runtime.State<CompositorState> = _compositorState
+
+    private val _clientCount = mutableStateOf(0)
+    val clientCountState: androidx.compose.runtime.State<Int> = _clientCount
+
+    fun onStateChange(state: CompositorState) { _compositorState.value = state }
+    fun onClientCountChange(count: Int) { _clientCount.value = count }
 }
 
 @Composable
 fun CompositorTestScreen(
     viewModel: CompositorTestViewModel = hiltViewModel(),
 ) {
-    val compositorState by viewModel.state.collectAsState()
-    val clientCount by viewModel.clientCount.collectAsState()
-    val socketPath by viewModel.socketPath.collectAsState()
+    val compositorState by viewModel.compositorState
+    val clientCount by viewModel.clientCountState
     var inputMode by remember { mutableStateOf(InputMode.TOUCH_AND_KEYBOARD) }
 
     Column(
@@ -82,7 +83,6 @@ fun CompositorTestScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     StatusRow("State", compositorState.name)
                     StatusRow("Clients", clientCount.toString())
-                    StatusRow("Socket", socketPath ?: "—")
                     StatusRow("Input Mode", inputMode.name)
                 }
             }
@@ -125,8 +125,8 @@ fun CompositorTestScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            // The test client is launched via the native compositor
-                            // It requires the compositor to be running
+                            // TODO: Wire to CompositorSession.startTestClient() once session
+                            //       is exposed from CompositorSurface (requires API addition).
                         },
                         enabled = compositorState == CompositorState.RUNNING,
                     ) {
@@ -142,8 +142,8 @@ fun CompositorTestScreen(
                 .fillMaxWidth()
                 .weight(1f),
             config = viewModel.compositorConfig,
-            onStateChange = { /* state already observed via ViewModel */ },
-            onClientCountChange = { /* client count already observed via ViewModel */ },
+            onStateChange = { viewModel.onStateChange(it) },
+            onClientCountChange = { viewModel.onClientCountChange(it) },
             inputMode = inputMode,
             showKeyboardFab = true,
         )
