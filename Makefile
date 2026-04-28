@@ -47,7 +47,7 @@ build-release: ## Gradle assembleRelease with native builds
 
 # ── Testing ──
 
-test: test-kotlin ## Run all local tests (native + Kotlin)
+test: test-native test-kotlin ## Run all local tests (native + Kotlin)
 
 test-native: ## Run native unit tests (Meson test)
 	@echo "=== Compositor native tests ==="

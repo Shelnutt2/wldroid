@@ -240,17 +240,31 @@ static void native_send_touch_event(JNIEnv *env, jobject thiz,
         return;
     }
     uint32_t ts = (uint32_t)timestampMs;
+    /* Android MotionEvent action constants */
+    #define ANDROID_ACTION_DOWN   0
+    #define ANDROID_ACTION_UP     1
+    #define ANDROID_ACTION_MOVE   2
+    #define ANDROID_ACTION_CANCEL 3
+
     switch (action) {
-    case 0: /* DOWN */
+    case ANDROID_ACTION_DOWN:
         input_handler_send_touch_down(g_server, id, (double)x, (double)y, ts);
         break;
-    case 1: /* MOVE */
+    case ANDROID_ACTION_UP:
+        input_handler_send_touch_up(g_server, id, ts);
+        break;
+    case ANDROID_ACTION_MOVE:
         input_handler_send_touch_motion(g_server, id, (double)x, (double)y, ts);
         break;
-    case 2: /* UP */
+    case ANDROID_ACTION_CANCEL:
         input_handler_send_touch_up(g_server, id, ts);
         break;
     }
+
+    #undef ANDROID_ACTION_DOWN
+    #undef ANDROID_ACTION_UP
+    #undef ANDROID_ACTION_MOVE
+    #undef ANDROID_ACTION_CANCEL
     pthread_mutex_unlock(&g_server_mutex);
 }
 

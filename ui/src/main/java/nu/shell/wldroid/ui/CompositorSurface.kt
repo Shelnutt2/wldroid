@@ -268,8 +268,8 @@ private class CompositorSurfaceView(
         if (event.keyCode in SYSTEM_KEY_CODES) return false
 
         val action = when (event.action) {
-            KeyEvent.ACTION_DOWN -> 1
-            KeyEvent.ACTION_UP -> 0
+            KeyEvent.ACTION_DOWN -> 0
+            KeyEvent.ACTION_UP -> 1
             else -> return false
         }
         input.sendKeyEvent(event.keyCode, action, event.eventTime)
@@ -328,12 +328,12 @@ private class CompositorSurfaceView(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 input.sendPointerButton(
-                    pointerButtonFromMotionEvent(event), 1, event.eventTime,
+                    pointerButtonFromMotionEvent(event), 0, event.eventTime,
                 )
             }
             MotionEvent.ACTION_UP -> {
                 input.sendPointerButton(
-                    pointerButtonFromMotionEvent(event), 0, event.eventTime,
+                    pointerButtonFromMotionEvent(event), 1, event.eventTime,
                 )
             }
         }
@@ -372,12 +372,8 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
 
     withContext(Dispatchers.IO) {
         try {
-            val fis = FileInputStream(java.io.FileDescriptor().also { field ->
-                // Use reflection to set the fd value
-                val fdField = java.io.FileDescriptor::class.java.getDeclaredField("descriptor")
-                fdField.isAccessible = true
-                fdField.setInt(field, fd)
-            })
+            val pfd = android.os.ParcelFileDescriptor.adoptFd(fd)
+            val fis = FileInputStream(pfd.fileDescriptor)
             val buffer = ByteArray(1)
             while (isActive) {
                 val bytesRead = fis.read(buffer)

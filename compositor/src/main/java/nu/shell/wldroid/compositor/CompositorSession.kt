@@ -49,6 +49,10 @@ class CompositorSession(private val config: CompositorConfig) {
         server.nativeResizeOutput(width, height)
     }
 
+    fun startTestClient() {
+        server.nativeStartTestClient()
+    }
+
     // Input forwarding (delegates to server)
-    val input: CompositorInput get() = CompositorInput(server)
+    val input: CompositorInput = CompositorInput(server)
 }
