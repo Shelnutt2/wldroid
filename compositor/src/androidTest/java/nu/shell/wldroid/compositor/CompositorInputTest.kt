@@ -10,6 +10,8 @@ import org.junit.runners.JUnit4
  *
  * Native methods can't be called on x86_64 emulators, so these tests verify
  * the Kotlin API surface and object creation without calling native methods.
+ * The JVM wraps the initial UnsatisfiedLinkError in ExceptionInInitializerError
+ * and subsequent class accesses throw NoClassDefFoundError.
  */
 @RunWith(JUnit4::class)
 class CompositorInputTest {
@@ -22,7 +24,8 @@ class CompositorInputTest {
             val server = CompositorServer()
             val input = CompositorInput(server)
             assertThat(input).isNotNull()
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (e: Error) {
+            if (!CompositorServerTest.isNativeLoadError(e)) throw e
             // Expected: native lib is arm64-only
             assertThat(e).isNotNull()
         }
@@ -36,7 +39,8 @@ class CompositorInputTest {
             val session = CompositorSession(config)
             val input = session.input
             assertThat(input).isInstanceOf(CompositorInput::class.java)
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (e: Error) {
+            if (!CompositorServerTest.isNativeLoadError(e)) throw e
             // Expected on x86_64 emulator
             assertThat(e).isNotNull()
         }
