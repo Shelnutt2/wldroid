@@ -7,7 +7,7 @@
 #
 # Submodule paths:
 #   ${PROJECT_ROOT}/external/virglrenderer/
-#   ${PROJECT_ROOT}/external/libepoxy/
+# libepoxy is downloaded automatically during build (not a submodule).
 #
 # Usage:
 #   bash virgl/native/build-virgl.sh           # incremental build
@@ -44,16 +44,17 @@ BUILD_DIR="$VIRGL_MODULE_DIR/native/build"
 
 # Submodule source directories
 VIRGL_SRC="$PROJECT_ROOT/external/virglrenderer"
-EPOXY_SRC="$PROJECT_ROOT/external/libepoxy"
 
-# Validate submodules exist
-for dir in "$VIRGL_SRC" "$EPOXY_SRC"; do
-    if [ ! -d "$dir" ]; then
-        echo "ERROR: Submodule not found at $dir" >&2
-        echo "  Run: git submodule update --init --recursive" >&2
-        exit 1
-    fi
-done
+# libepoxy is not a git submodule — download it if not already present.
+EPOXY_VERSION="1.5.10"
+EPOXY_SRC="$BUILD_DIR/libepoxy-src"
+
+# Validate virglrenderer submodule exists
+if [ ! -d "$VIRGL_SRC" ]; then
+    echo "ERROR: Submodule not found at $VIRGL_SRC" >&2
+    echo "  Run: git submodule update --init --recursive" >&2
+    exit 1
+fi
 
 # ── Locate Android NDK ──
 if [ -n "${ANDROID_NDK_HOME:-}" ]; then
@@ -103,6 +104,19 @@ if [ "${1:-}" = "--clean" ]; then
 fi
 
 mkdir -p "$BUILD_DIR"
+
+# ── Download libepoxy if needed ──
+if [ ! -d "$EPOXY_SRC" ]; then
+    echo ""
+    echo "=== Downloading libepoxy $EPOXY_VERSION ==="
+    EPOXY_TAR="$BUILD_DIR/libepoxy-${EPOXY_VERSION}.tar.gz"
+    curl -L -o "$EPOXY_TAR" \
+        "https://github.com/anholt/libepoxy/archive/refs/tags/${EPOXY_VERSION}.tar.gz"
+    tar xzf "$EPOXY_TAR" -C "$BUILD_DIR"
+    mv "$BUILD_DIR/libepoxy-${EPOXY_VERSION}" "$EPOXY_SRC"
+    rm -f "$EPOXY_TAR"
+    echo "  Downloaded to: $EPOXY_SRC"
+fi
 
 # ── Install paths ──
 EPOXY_INSTALL="$BUILD_DIR/libepoxy-install"
