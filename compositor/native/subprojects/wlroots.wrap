@@ -1,0 +1,5 @@
+[wrap-file]
+directory = wlroots
+
+[provide]
+dependency_names = wlroots-0.19
