@@ -20,9 +20,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - name: Install NDK
-        run: sdkmanager "ndk;28.0.13004108"
+      - name: Setup Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -42,9 +43,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - name: Install NDK
-        run: sdkmanager "ndk;28.0.13004108"
+      - name: Setup Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -72,15 +74,17 @@ jobs:
         run: pip3 install meson ninja
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev wayland-protocols libdrm-dev libxkbcommon-dev
+      - name: Setup Meson subprojects
+        run: bash scripts/setup-meson-subprojects.sh
       - name: Build and test compositor (host)
         run: |
           cd compositor/native
-          meson setup builddir
-          meson test -C builddir --print-errorlogs
+          meson setup builddir --wrap-mode=forcefallback
+          meson test -C builddir --print-errorlogs --suite wldroid-compositor
       - name: Build and test GBM shim (host)
         run: |
           cd shims/native/gbm-shim
-          meson setup builddir
+          meson setup builddir -Dtests=true
           meson test -C builddir --print-errorlogs
 
   emulator-tests:
@@ -92,7 +96,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
