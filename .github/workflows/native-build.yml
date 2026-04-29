@@ -43,10 +43,9 @@ jobs:
         run: bash scripts/setup-meson-subprojects.sh
       - name: Cross-compile compositor for ARM64
         run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           cd compositor/native
           bash scripts/build.sh
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.0.13004108
       - name: Upload compositor .so
         uses: actions/upload-artifact@v4
         with:
@@ -70,9 +69,9 @@ jobs:
       - name: Install Meson + Ninja
         run: pip3 install meson ninja
       - name: Cross-compile VirGL for ARM64
-        run: bash virgl/native/build-virgl.sh
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.0.13004108
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          bash virgl/native/build-virgl.sh
       - name: Upload VirGL binaries
         uses: actions/upload-artifact@v4
         with:
