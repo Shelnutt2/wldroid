@@ -10,22 +10,33 @@ import org.junit.runners.JUnit4
  * Instrumented tests for [CompositorServer] and the native JNI bridge.
  *
  * The native library (libwldroid-compositor.so) is built for arm64 only,
- * so on x86_64 emulators the library load will fail with UnsatisfiedLinkError.
- * Tests are written to handle both cases gracefully.
+ * so on x86_64 emulators the library load will fail. The JVM wraps the
+ * initial UnsatisfiedLinkError in ExceptionInInitializerError (first access)
+ * and subsequent class accesses throw NoClassDefFoundError. Tests handle
+ * all three error types gracefully.
  */
 @RunWith(JUnit4::class)
 class CompositorServerTest {
+
+    companion object {
+        /** Returns true if the throwable is a native library load failure. */
+        fun isNativeLoadError(e: Throwable): Boolean =
+            e is UnsatisfiedLinkError ||
+                e is ExceptionInInitializerError ||
+                e is NoClassDefFoundError
+    }
 
     @Test
     fun nativeLibraryLoadAttemptDoesNotCrash() {
         // CompositorServer companion init calls System.loadLibrary("wldroid-compositor").
         // On x86_64 emulators the arm64 .so isn't available, so we expect
-        // UnsatisfiedLinkError — but the JVM must not crash.
+        // a native load error — but the JVM must not crash.
         try {
             val server = CompositorServer()
             // If we get here, the native lib loaded (real ARM device).
             assertThat(server).isNotNull()
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (e: Error) {
+            if (!isNativeLoadError(e)) throw e
             // Expected on x86_64 emulators — the .so is arm64-only.
             assertThat(e.message).isNotEmpty()
         }
@@ -45,7 +56,8 @@ class CompositorServerTest {
             assertThat(session.state.value).isEqualTo(CompositorState.IDLE)
             assertThat(session.clientCount.value).isEqualTo(0)
             assertThat(session.socketPath.value).isNull()
-        } catch (e: UnsatisfiedLinkError) {
+        } catch (e: Error) {
+            if (!isNativeLoadError(e)) throw e
             // Expected on x86_64 — verify the config is still valid
             assertThat(config.cacheDir).isNotEmpty()
         }
