@@ -79,7 +79,8 @@ jobs:
       - name: Build and test compositor (host)
         run: |
           cd compositor/native
-          meson setup builddir --wrap-mode=forcefallback
+          # Disable renderers and backends — host tests don't need EGL/GPU
+          meson setup builddir --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends=
           meson test -C builddir --print-errorlogs --suite wldroid-compositor
       - name: Build and test GBM shim (host)
         run: |
