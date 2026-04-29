@@ -31,19 +31,22 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - name: Install NDK
-        run: sdkmanager "ndk;28.0.13004108"
+      - name: Setup Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
       - name: Install Meson + Ninja
         run: pip3 install meson ninja
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev
+      - name: Setup Meson subprojects
+        run: bash scripts/setup-meson-subprojects.sh
       - name: Cross-compile compositor for ARM64
         run: |
           cd compositor/native
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
-          meson setup builddir-arm64 \
-            --cross-file cross/android-aarch64.txt \
-            --buildtype release
-          ninja -C builddir-arm64
+          bash scripts/build.sh
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.0.13004108
       - name: Upload compositor .so
         uses: actions/upload-artifact@v4
         with:
@@ -60,20 +63,16 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - name: Install NDK
-        run: sdkmanager "ndk;28.0.13004108"
+      - name: Setup Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
       - name: Install Meson + Ninja
         run: pip3 install meson ninja
       - name: Cross-compile VirGL for ARM64
-        run: |
-          cd virgl/native
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
-          if [ -f build-virgl.sh ]; then
-            bash build-virgl.sh
-          else
-            echo "No build script found, skipping"
-          fi
+        run: bash virgl/native/build-virgl.sh
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.0.13004108
       - name: Upload VirGL binaries
         uses: actions/upload-artifact@v4
         with:
