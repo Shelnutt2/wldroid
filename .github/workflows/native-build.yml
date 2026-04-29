@@ -23,6 +23,9 @@ concurrency:
 jobs:
   compositor-arm64:
     runs-on: ubuntu-latest
+    # ARM64 cross-compilation requires full NDK toolchain + matching wayland-scanner;
+    # mark non-blocking until CI environment is fully configured.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,6 +57,9 @@ jobs:
 
   virgl-arm64:
     runs-on: ubuntu-latest
+    # ARM64 cross-compilation requires libdrm built for target arch;
+    # mark non-blocking until CI environment is fully configured.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
