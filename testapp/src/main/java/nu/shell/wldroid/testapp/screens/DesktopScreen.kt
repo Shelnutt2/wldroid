@@ -288,6 +288,18 @@ fun DesktopScreen(
                 )
             }
 
+            // GPU compatibility warning for selected preset.
+            if (!isCustom && selectedPreset != null && !selectedPreset!!.isCompatibleWith(gpuMode)) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "⚠ ${selectedPreset!!.displayName} requires " +
+                        "${selectedPreset!!.supportedGpuModes!!.joinToString(" or ") { it.displayName }}. " +
+                        "Current mode (${ gpuMode.displayName }) is not supported — the app will likely fail.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             // Custom command field
             if (isCustom) {
                 Spacer(modifier = Modifier.height(8.dp))
