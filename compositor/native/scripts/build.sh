@@ -123,8 +123,14 @@ if [ -z "$SCANNER_BIN" ]; then
         echo "=== Building wayland-scanner for host ==="
         WAYLAND_SRC="$SCRIPT_DIR/../subprojects/wayland-1.24.0"
         if [ ! -d "$WAYLAND_SRC" ]; then
+            echo "Downloading wayland source from wrap file..."
+            cd "$SCRIPT_DIR/.."
+            meson subprojects download wayland
+            cd - >/dev/null
+        fi
+        if [ ! -d "$WAYLAND_SRC" ]; then
             echo "ERROR: Wayland source not found at $WAYLAND_SRC" >&2
-            echo "Run 'meson subprojects download wayland' in compositor/native/ or install wayland-scanner >= 1.24.0 on the system." >&2
+            echo "Install wayland-scanner >= 1.24.0 or check the wayland.wrap file." >&2
             exit 1
         fi
         meson setup "$NATIVE_BUILD_DIR" "$WAYLAND_SRC" \
