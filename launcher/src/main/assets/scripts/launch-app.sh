@@ -5,7 +5,7 @@
 #
 # Required env vars:
 #   WLDROID_GPU_MODE — one of: SOFTWARE, VIRGL_GLES, VIRGL_ZINK, TURNIP_DIRECT, VENUS
-#   XDG_RUNTIME_DIR — Wayland runtime directory (typically /tmp/xdg-runtime)
+#   XDG_RUNTIME_DIR — Wayland runtime directory (host path, identity-bound by proot)
 #   WAYLAND_DISPLAY — Wayland socket name (e.g., wayland-0)
 #
 # Optional env vars:
