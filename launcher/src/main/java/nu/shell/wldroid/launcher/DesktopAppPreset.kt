@@ -25,18 +25,18 @@ data class DesktopAppPreset(
             description = "Weston terminal emulator",
             icon = "💻",
         )
-        val GLXGEARS = DesktopAppPreset(
-            id = "glxgears",
-            displayName = "glxgears",
-            command = listOf("glxgears"),
-            requiredPackages = listOf("mesa-utils"),
-            description = "OpenGL test (rotating gears)",
+        val ES2GEARS = DesktopAppPreset(
+            id = "es2gears_wayland",
+            displayName = "es2gears",
+            command = listOf("es2gears_wayland"),
+            requiredPackages = listOf("mesa-utils-extra"),
+            description = "OpenGL ES2 test (rotating gears, Wayland native)",
             icon = "⚙",
         )
         val VKCUBE = DesktopAppPreset(
             id = "vkcube",
             displayName = "vkcube",
-            command = listOf("vkcube"),
+            command = listOf("vkcube", "--wsi", "wayland"),
             requiredPackages = listOf("vulkan-tools"),
             description = "Vulkan test cube",
             icon = "🟦",
@@ -64,6 +64,6 @@ data class DesktopAppPreset(
             description = "Firefox web browser",
             icon = "🦊",
         )
-        val ALL = listOf(TEST_PATTERN, WESTON_TERMINAL, GLXGEARS, VKCUBE, XTERM, VSCODE, FIREFOX)
+        val ALL = listOf(TEST_PATTERN, WESTON_TERMINAL, ES2GEARS, VKCUBE, XTERM, VSCODE, FIREFOX)
     }
 }
