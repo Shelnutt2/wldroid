@@ -9,7 +9,7 @@ class NavigationTest {
     @Test
     fun `all routes are defined`() {
         val routes = TestAppRoute.all
-        assertThat(routes).hasSize(6)
+        assertThat(routes).hasSize(7)
     }
 
     @Test
@@ -42,6 +42,7 @@ class NavigationTest {
         val routeStrings = TestAppRoute.all.map { it.route }
         assertThat(routeStrings).containsExactly(
             "compositor",
+            "desktop",
             "environment",
             "gpu_diagnostics",
             "shim_test",
