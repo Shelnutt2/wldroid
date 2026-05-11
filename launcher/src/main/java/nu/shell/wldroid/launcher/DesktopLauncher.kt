@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withTimeoutOrNull
 import nu.shell.wldroid.compositor.CompositorSession
 import nu.shell.wldroid.proot.ProotDnsManager
@@ -46,6 +47,7 @@ class DesktopLauncher(
     private val _gpuMode = MutableStateFlow(GpuMode.AUTO)
     val gpuMode: StateFlow<GpuMode> = _gpuMode.asStateFlow()
 
+    @Volatile
     private var launchJob: Job? = null
 
     /** Emit a message to the process output stream (visible in the log panel). */
@@ -175,7 +177,7 @@ class DesktopLauncher(
 
     suspend fun stop() {
         _state.value = DesktopLauncherState.Stopping
-        launchJob?.cancel()
+        launchJob?.cancelAndJoin()
         launchJob = null
         virglSession.stop()
         _state.value = DesktopLauncherState.Idle
