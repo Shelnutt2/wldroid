@@ -85,3 +85,7 @@ dependencies {
     androidTestImplementation(libs.coroutines.test)
 }
 
+
+extra["publishArtifactId"] = "wldroid-proot"
+extra["publishDescription"] = "PRoot environment management for running Linux apps on Android"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")

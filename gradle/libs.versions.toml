@@ -1,4 +1,5 @@
 [versions]
+wldroid = "0.1.0"
 agp = "8.9.1"
 kotlin = "2.1.10"
 compose-bom = "2024.12.01"

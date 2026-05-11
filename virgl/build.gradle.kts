@@ -81,3 +81,7 @@ dependencies {
     androidTestImplementation(libs.coroutines.test)
 }
 
+
+extra["publishArtifactId"] = "wldroid-virgl"
+extra["publishDescription"] = "VirGL server management and GPU capability detection for Android"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")

@@ -41,3 +41,7 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.coroutines.test)
 }
+
+extra["publishArtifactId"] = "wldroid-launcher"
+extra["publishDescription"] = "High-level launcher orchestrating compositor, proot, virgl, and shims"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")

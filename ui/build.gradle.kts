@@ -66,3 +66,7 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 }
 
+
+extra["publishArtifactId"] = "wldroid-ui"
+extra["publishDescription"] = "Jetpack Compose UI components for WLDroid compositor integration"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")
