@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 OUT="${1:-$PROJECT_ROOT/shims/build/outputs/native/gbm-shim/libgbm.so.1}"
 
 SRCS="$SCRIPT_DIR/src/gbm_ahb.c $SCRIPT_DIR/src/gbm_ahb_formats.c"
-INCLUDES="-I$SCRIPT_DIR/include -I$SCRIPT_DIR/src -I$SCRIPT_DIR/vendor-include -I$PROJECT_ROOT/external/libdrm/include/drm"
+INCLUDES="-I$SCRIPT_DIR/include -I$SCRIPT_DIR/src -I$SCRIPT_DIR/vendor-include"
 CFLAGS="-shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -DNDEBUG"
 LDFLAGS="-Wl,-soname,libgbm.so.1 -ldl -lpthread"
 
@@ -26,7 +26,6 @@ if [ "${GBM_SHIM_DOCKER:-false}" = "true" ]; then
                 -I/repo/shims/native/gbm-shim/include \
                 -I/repo/shims/native/gbm-shim/src \
                 -I/repo/shims/native/gbm-shim/vendor-include \
-                -I/repo/external/libdrm/include/drm \
                 $LDFLAGS
             aarch64-linux-gnu-strip /out/$(basename "$OUT")
         "
