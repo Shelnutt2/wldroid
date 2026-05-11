@@ -50,7 +50,7 @@ class ShimExtractorTest {
     @Test
     fun `SHIM_ASSETS includes gbm-shim`() {
         val assetPaths = ShimExtractor.SHIM_ASSETS.map { it.first }
-        assertThat(assetPaths).contains("gbm-shim/libgbm.so.1")
+        assertThat(assetPaths).contains("gbm-shim/libgbm.so")
     }
 
     @Test

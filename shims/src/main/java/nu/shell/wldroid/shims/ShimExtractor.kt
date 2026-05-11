@@ -116,7 +116,7 @@ class ShimExtractor(private val context: Context) {
         internal val SHIM_ASSETS = listOf(
             "drm-shim/libdrm-shim.so" to "libdrm-shim.so",
             "drm-shim/libdrm-wrapper.so" to "libdrm-wrapper.so",
-            "gbm-shim/libgbm.so.1" to "libgbm.so.1",
+            "gbm-shim/libgbm.so" to "libgbm.so.1",
             "egl-override/libegl_override.so" to "libegl_override.so",
             "netstub/libnetstub.so" to "libnetstub.so",
         )
@@ -125,7 +125,7 @@ class ShimExtractor(private val context: Context) {
         private val ASSET_TO_KEY = mapOf(
             "drm-shim/libdrm-shim.so" to "drmShim",
             "drm-shim/libdrm-wrapper.so" to "drmWrapper",
-            "gbm-shim/libgbm.so.1" to "gbmShim",
+            "gbm-shim/libgbm.so" to "gbmShim",
             "egl-override/libegl_override.so" to "eglOverride",
             "netstub/libnetstub.so" to "netstub",
         )
