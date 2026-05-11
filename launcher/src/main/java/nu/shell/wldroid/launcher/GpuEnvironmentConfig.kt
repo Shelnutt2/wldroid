@@ -1,0 +1,94 @@
+package nu.shell.wldroid.launcher
+
+import nu.shell.wldroid.proot.BindMount
+import nu.shell.wldroid.shims.ShimExtractor
+import nu.shell.wldroid.virgl.GpuMode
+
+object GpuEnvironmentConfig {
+
+    fun buildEnvVars(
+        gpuMode: GpuMode,
+        waylandSocketName: String,
+        waylandRuntimeDir: String,
+        shimSet: ShimExtractor.ShimSet,
+        ldPreload: String,
+    ): Map<String, String> {
+        val vars = mutableMapOf(
+            "WAYLAND_DISPLAY" to waylandSocketName,
+            "XDG_RUNTIME_DIR" to "/tmp/xdg-runtime",
+            "ELECTRON_OZONE_PLATFORM_HINT" to "wayland",
+            "GDK_BACKEND" to "wayland",
+            "QT_QPA_PLATFORM" to "wayland",
+            "UV_USE_IO_URING" to "0",
+        )
+        if (ldPreload.isNotEmpty()) {
+            vars["LD_PRELOAD"] = ldPreload
+        }
+
+        when (gpuMode) {
+            GpuMode.SOFTWARE -> {
+                vars["LIBGL_ALWAYS_SOFTWARE"] = "1"
+            }
+            GpuMode.VIRGL_GLES -> {
+                vars["MESA_GL_VERSION_OVERRIDE"] = "3.3"
+                vars["VTEST_SOCK"] = "/tmp/.virgl_test"
+            }
+            GpuMode.VIRGL_ZINK -> {
+                vars["MESA_GL_VERSION_OVERRIDE"] = "4.0"
+                vars["VTEST_SOCK"] = "/tmp/.virgl_test"
+                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/lvp_icd.aarch64.json"
+                vars["GALLIUM_DRIVER"] = "zink"
+            }
+            GpuMode.VENUS -> {
+                vars["GALLIUM_DRIVER"] = "zink"
+                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/virtio_icd.aarch64.json"
+                vars["VTEST_SOCK"] = "/tmp/.virgl_test"
+            }
+            GpuMode.TURNIP_DIRECT -> {
+                vars["GALLIUM_DRIVER"] = "zink"
+                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+            }
+            GpuMode.AUTO -> {
+                // AUTO should be resolved before calling this; treat as SOFTWARE fallback
+                vars["LIBGL_ALWAYS_SOFTWARE"] = "1"
+            }
+        }
+        return vars
+    }
+
+    fun buildBindMounts(
+        gpuMode: GpuMode,
+        config: DesktopLauncherConfig,
+        waylandRuntimeDir: String,
+        shimSet: ShimExtractor.ShimSet,
+        virglSocketDir: String?,
+    ): List<BindMount> {
+        val mounts = mutableListOf<BindMount>()
+
+        // Wayland runtime dir → XDG_RUNTIME_DIR
+        mounts.add(BindMount(hostPath = waylandRuntimeDir, guestPath = "/tmp/xdg-runtime"))
+
+        // Netstub (all modes)
+        val netstubDir = java.io.File(shimSet.netstub).parent ?: shimSet.netstub
+        mounts.add(BindMount(hostPath = netstubDir, guestPath = config.netstubGuestPath))
+
+        // DRM shim (all modes except pure software could benefit, include always)
+        val drmShimDir = java.io.File(shimSet.drmShim).parent ?: shimSet.drmShim
+        mounts.add(BindMount(hostPath = drmShimDir, guestPath = "${config.shimGuestBasePath}/drm-shim"))
+
+        // GBM shim
+        val gbmShimDir = java.io.File(shimSet.gbmShim).parent ?: shimSet.gbmShim
+        mounts.add(BindMount(hostPath = gbmShimDir, guestPath = "${config.shimGuestBasePath}/gbm-shim"))
+
+        // EGL override
+        val eglOverrideDir = java.io.File(shimSet.eglOverride).parent ?: shimSet.eglOverride
+        mounts.add(BindMount(hostPath = eglOverrideDir, guestPath = "${config.shimGuestBasePath}/egl-override"))
+
+        // VirGL socket dir (for modes that need VirGL server)
+        if (gpuMode.requiresVirglServer && virglSocketDir != null) {
+            mounts.add(BindMount(hostPath = virglSocketDir, guestPath = "/tmp"))
+        }
+
+        return mounts
+    }
+}
