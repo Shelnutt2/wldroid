@@ -22,6 +22,7 @@ import nu.shell.wldroid.virgl.GpuCapabilityDetector
 import nu.shell.wldroid.virgl.GpuMode
 import nu.shell.wldroid.virgl.GpuModeStore
 import nu.shell.wldroid.virgl.VirglConfig
+import nu.shell.wldroid.virgl.VirglSession
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -110,6 +111,13 @@ object TestAppModule {
         rootfsManager: RootfsManager,
         rootfsStore: RootfsStore,
     ): EnvironmentRegistry = EnvironmentRegistry(rootfsManager, rootfsStore)
+
+    @Provides
+    @Singleton
+    fun provideVirglSession(
+        virglConfig: VirglConfig,
+        gpuDetector: GpuCapabilityDetector,
+    ): VirglSession = VirglSession(virglConfig, gpuDetector = gpuDetector)
 
     @Provides
     @Singleton
