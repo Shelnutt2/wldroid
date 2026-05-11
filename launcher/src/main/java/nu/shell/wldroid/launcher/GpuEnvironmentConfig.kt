@@ -1,6 +1,7 @@
 package nu.shell.wldroid.launcher
 
 import nu.shell.wldroid.proot.BindMount
+import nu.shell.wldroid.shims.ShimConfig
 import nu.shell.wldroid.shims.ShimExtractor
 import nu.shell.wldroid.virgl.GpuMode
 
@@ -56,12 +57,25 @@ object GpuEnvironmentConfig {
         return vars
     }
 
+    /**
+     * Build guest-side LD_PRELOAD string using paths relative to [shimGuestBasePath].
+     * These are the paths visible inside proot, not host-side extraction paths.
+     */
+    fun buildGuestLdPreload(gpuMode: GpuMode, shimGuestBasePath: String): String {
+        val config = ShimConfig.forGpuMode(gpuMode.name)
+        return buildList {
+            if (config.enableDrmShim) add("$shimGuestBasePath/drm-shim/libdrm-shim.so")
+            if (config.enableGbmShim) add("$shimGuestBasePath/gbm-shim/libgbm.so.1")
+            if (config.enableEglOverride) add("$shimGuestBasePath/egl-override/libegl_override.so")
+            if (config.enableNetstub) add("$shimGuestBasePath/netstub/libnetstub.so")
+        }.joinToString(":")
+    }
+
     fun buildBindMounts(
         gpuMode: GpuMode,
         config: DesktopLauncherConfig,
         waylandRuntimeDir: String,
         shimSet: ShimExtractor.ShimSet,
-        virglSocketDir: String?,
     ): List<BindMount> {
         val mounts = mutableListOf<BindMount>()
 
@@ -83,11 +97,6 @@ object GpuEnvironmentConfig {
         // EGL override
         val eglOverrideDir = java.io.File(shimSet.eglOverride).parent ?: shimSet.eglOverride
         mounts.add(BindMount(hostPath = eglOverrideDir, guestPath = "${config.shimGuestBasePath}/egl-override"))
-
-        // VirGL socket dir (for modes that need VirGL server)
-        if (gpuMode.requiresVirglServer && virglSocketDir != null) {
-            mounts.add(BindMount(hostPath = virglSocketDir, guestPath = "/tmp"))
-        }
 
         return mounts
     }

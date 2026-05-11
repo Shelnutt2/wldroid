@@ -100,7 +100,7 @@ class DesktopLauncher(
                 _state.value = DesktopLauncherState.ExtractingShims
                 _processOutput.tryEmit("Extracting shims...")
                 val shimSet = shimExtractor.extractAll(config.shimExtractDir)
-                val ldPreload = shimExtractor.getLdPreloadString(shimSet, _gpuMode.value.name)
+                val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(_gpuMode.value, config.shimGuestBasePath)
                 _processOutput.tryEmit("✓ Shims extracted")
 
                 // 5. Install packages if needed
@@ -123,15 +123,8 @@ class DesktopLauncher(
                     _gpuMode.value, socketName, config.waylandRuntimeDir, shimSet, ldPreload,
                 ) + config.additionalEnvVars
 
-                val virglSocketDir = if (_gpuMode.value.requiresVirglServer) {
-                    // VirglConfig socketPath parent dir
-                    null // Will be configured via additionalBindMounts if needed
-                } else {
-                    null
-                }
-
                 val bindMounts = GpuEnvironmentConfig.buildBindMounts(
-                    _gpuMode.value, config, config.waylandRuntimeDir, shimSet, virglSocketDir,
+                    _gpuMode.value, config, config.waylandRuntimeDir, shimSet,
                 ) + config.additionalBindMounts
 
                 // 7. Launch in proot
