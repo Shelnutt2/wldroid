@@ -166,7 +166,9 @@ class DesktopLauncher(
                 _processOutput.tryEmit("Launching: ${command.joinToString(" ")}")
                 _state.value = DesktopLauncherState.Running
 
-                val pb = prootExecutor.buildCommand(environment, command, envVars, bindMounts)
+                val pb = prootExecutor.buildCommand(
+                    environment, command, bindMounts = bindMounts, guestEnvVars = envVars,
+                )
                 val process = pb.start()
                 activeProcess = process
                 try {
