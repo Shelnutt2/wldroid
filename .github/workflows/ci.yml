@@ -134,11 +134,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: |
-            ./gradlew connectedAndroidTest -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true || {
-              echo "::warning::Instrumented tests failed (expected on x86_64 emulator with ARM64 native libs)"
-              exit 0
-            }
+          script: ./gradlew connectedAndroidTest -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true || echo "::warning::Instrumented tests failed"
       - name: Upload instrumented test results
         if: always()
         uses: actions/upload-artifact@v4
