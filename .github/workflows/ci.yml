@@ -79,6 +79,19 @@ jobs:
       - name: Build and test compositor (host)
         run: |
           cd compositor/native
+          # Create a wayland-scanner .pc override so Meson's
+          # dependency('wayland-scanner', native: true, version: '>=1.23.1')
+          # accepts the system scanner (Ubuntu ships 1.22.0, too old for the check).
+          SCANNER_BIN="$(which wayland-scanner)"
+          SCANNER_PC_DIR="$(mktemp -d)"
+          cat > "$SCANNER_PC_DIR/wayland-scanner.pc" <<PCEOF
+          wayland_scanner=$SCANNER_BIN
+
+          Name: wayland-scanner
+          Description: Wayland scanner (pkg-config override)
+          Version: 1.24.0
+          PCEOF
+          export PKG_CONFIG_PATH="$SCANNER_PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           # Disable renderers and backends — host tests don't need EGL/GPU
           meson setup builddir --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends=
           meson test -C builddir --print-errorlogs --suite wldroid-compositor

@@ -134,6 +134,24 @@ if [ -z "$SCANNER_BIN" ]; then
     echo "Built wayland-scanner: $SCANNER_BIN"
 fi
 
+# ── Create wayland-scanner pkg-config override ──
+# Meson's dependency('wayland-scanner', native: true) does a pkg-config lookup.
+# The system wayland-scanner may be too old (e.g. 1.22.0 on Ubuntu) but our
+# scanner binary (system or self-built) is adequate. Create a .pc file that
+# reports version 1.24.0 (matching the wayland subproject) so the version check
+# passes, and point PKG_CONFIG_PATH at it for the configure step.
+SCANNER_PC_DIR="$CROSS_DIR/pkgconfig"
+mkdir -p "$SCANNER_PC_DIR"
+cat > "$SCANNER_PC_DIR/wayland-scanner.pc" <<EOF
+wayland_scanner=$SCANNER_BIN
+
+Name: wayland-scanner
+Description: Wayland scanner (provided by build system)
+Version: 1.24.0
+EOF
+export PKG_CONFIG_PATH="$SCANNER_PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+echo "Scanner .pc override: $SCANNER_PC_DIR/wayland-scanner.pc"
+
 # ── Generate native file (tells cross build where host scanner lives) ──
 # This is essential: --wrap-mode=forcefallback would otherwise try to build
 # wayland-scanner from the wayland subproject for the cross target (aarch64),
