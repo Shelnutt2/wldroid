@@ -76,6 +76,45 @@ fi
 export LIBGL_DRIVERS_PATH="${LIB_DIR}/dri"
 debug "LIBGL_DRIVERS_PATH=${LIBGL_DRIVERS_PATH}"
 
+# --- Vulkan ICD file discovery ---
+# The host may set VK_DRIVER_FILES to a specific ICD path that doesn't exist
+# in the guest rootfs (e.g., different naming between Debian versions).
+# If the configured file is missing, search for the actual file.
+if [ -n "${VK_DRIVER_FILES:-}" ] && [ ! -f "${VK_DRIVER_FILES}" ]; then
+    ICD_BASENAME=$(basename "${VK_DRIVER_FILES}" | sed 's/\.[^.]*\.json$/*.json/')
+    ICD_DIR=$(dirname "${VK_DRIVER_FILES}")
+    FOUND_ICD=""
+    for f in "${ICD_DIR}"/${ICD_BASENAME}; do
+        if [ -f "$f" ]; then
+            FOUND_ICD="$f"
+            break
+        fi
+    done
+    if [ -n "${FOUND_ICD}" ]; then
+        log "VK_DRIVER_FILES: ${VK_DRIVER_FILES} not found, using ${FOUND_ICD}"
+        export VK_DRIVER_FILES="${FOUND_ICD}"
+    else
+        debug "VK_DRIVER_FILES: ${VK_DRIVER_FILES} not found, no alternative discovered in ${ICD_DIR}"
+    fi
+fi
+
+# --- Browser/toolkit GPU workarounds ---
+# Firefox/Gecko: enable native Wayland backend and disable WebRender
+# (WebRender crashes with VirGL translation layers).
+export MOZ_ENABLE_WAYLAND=1
+case "${WLDROID_GPU_MODE}" in
+    SOFTWARE)
+        export MOZ_WEBRENDER=0
+        export LIBGL_ALWAYS_SOFTWARE=1
+        ;;
+    VIRGL_GLES|VIRGL_ZINK)
+        export MOZ_WEBRENDER=0
+        ;;
+esac
+
+# Chromium/Electron: disable sandbox (incompatible with proot's ptrace)
+export ELECTRON_NO_SANDBOX=1
+
 # --- Debug mode: enable Mesa/EGL verbose logging ---
 if [ "${WLDROID_DEBUG:-0}" = "1" ]; then
     export MESA_DEBUG=1
