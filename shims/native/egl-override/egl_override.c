@@ -255,7 +255,6 @@ static pfn_eglCreateContext  real_eglCreateContext = NULL;
 static pfn_eglGetError       real_eglGetError = NULL;
 
 /* Diagnostic counters */
-static int swap_count = 0;
 static int suppress_bad_surface = 0;
 static int make_current_count = 0;
 

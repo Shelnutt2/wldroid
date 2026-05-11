@@ -2051,7 +2051,10 @@ int openat(int dirfd, const char *pathname, int flags, ...)
     int fd = real_openat(dirfd, pathname, flags, mode);
 
     /* Track if this is our DRM render node or card node */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
     if (fd >= 0 && pathname) {
+#pragma GCC diagnostic pop
         if (strcmp(pathname, "/dev/dri/renderD128") == 0 ||
             strcmp(pathname, "/dev/dri/card0") == 0) {
             drm_fd_add(fd);
@@ -2707,7 +2710,10 @@ void *dlsym(void *handle, const char *symbol)
     if (is_electron_child())
         return real_dlsym(handle, symbol);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
     if (symbol) {
+#pragma GCC diagnostic pop
         /* Intercept wayland function lookups — return our wrappers regardless
          * of which library handle the caller is searching in. */
         if (strcmp(symbol, "wl_proxy_add_listener") == 0) {
