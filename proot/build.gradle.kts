@@ -22,6 +22,13 @@ android {
         jvmTarget = "17"
     }
 
+
+    // Proot binaries are exec'd as separate processes, not loaded via JNI.
+    // They must be extracted to disk (useLegacyPackaging) to be launchable.
+    packaging {
+        jniLibs.useLegacyPackaging = true
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }

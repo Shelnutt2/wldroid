@@ -32,6 +32,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // Proot and VirGL binaries are exec'd as separate processes, not loaded via JNI.
+    // The app must extract all native libs to disk (useLegacyPackaging) so they are launchable.
+    packaging {
+        jniLibs.useLegacyPackaging = true
+    }
 }
 
 dependencies {
