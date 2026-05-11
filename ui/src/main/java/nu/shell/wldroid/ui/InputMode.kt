@@ -15,17 +15,20 @@ enum class InputMode {
 
     /** Pointer (mouse) and keyboard events are forwarded; touch is ignored. */
     POINTER_AND_KEYBOARD,
+
+    /** All input types: touch, keyboard, and pointer/mouse. */
+    ALL,
     ;
 
     /** Whether this mode includes touch input. */
     val hasTouchInput: Boolean
-        get() = this == TOUCH_ONLY || this == TOUCH_AND_KEYBOARD
+        get() = this == TOUCH_ONLY || this == TOUCH_AND_KEYBOARD || this == ALL
 
     /** Whether this mode includes keyboard input. */
     val hasKeyboardInput: Boolean
-        get() = this == KEYBOARD_ONLY || this == TOUCH_AND_KEYBOARD || this == POINTER_AND_KEYBOARD
+        get() = this == KEYBOARD_ONLY || this == TOUCH_AND_KEYBOARD || this == POINTER_AND_KEYBOARD || this == ALL
 
     /** Whether this mode includes pointer/mouse input. */
     val hasPointerInput: Boolean
-        get() = this == POINTER_AND_KEYBOARD
+        get() = this == POINTER_AND_KEYBOARD || this == ALL
 }

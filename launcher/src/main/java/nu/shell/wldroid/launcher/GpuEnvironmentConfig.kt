@@ -52,8 +52,7 @@ object GpuEnvironmentConfig {
                 vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/lvp_icd.aarch64.json"
             }
             GpuMode.AUTO -> {
-                // AUTO should be resolved before calling this; treat as SOFTWARE fallback
-                vars["LIBGL_ALWAYS_SOFTWARE"] = "1"
+                throw IllegalArgumentException("GPU mode must be resolved before building env vars")
             }
         }
         return vars
