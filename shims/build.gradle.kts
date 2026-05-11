@@ -45,6 +45,13 @@ val buildNative by tasks.registering(Exec::class) {
     // Shims output directory
     environment("OUTPUT_DIR", "${project.layout.buildDirectory.get().asFile}/outputs/native")
 
+    // Inputs: all native shim sources and build scripts
+    inputs.files(fileTree("native") { include("**/*.c", "**/*.h", "**/meson.build", "**/*.sh") })
+    inputs.file("docker/build-all.sh")
+
+    // Output: entire native output directory (assets)
+    outputs.dir("${project.layout.buildDirectory.get().asFile}/outputs/native")
+
     onlyIf { !project.hasProperty("skipShims") || project.property("skipShims") != "true" }
 }
 
