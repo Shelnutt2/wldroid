@@ -78,3 +78,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.rules)
 }
 
+
+extra["publishArtifactId"] = "wldroid-shims"
+extra["publishDescription"] = "DRM/GBM/EGL/netstub shim libraries for Linux-on-Android environments"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")
