@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import nu.shell.wldroid.compositor.CompositorSession
+import nu.shell.wldroid.proot.ProotDnsManager
 import nu.shell.wldroid.proot.ProotExecutor
 import nu.shell.wldroid.proot.RootfsEnvironment
 import nu.shell.wldroid.shims.ShimExtractor
@@ -30,6 +31,7 @@ class DesktopLauncher(
     private val prootExecutor: ProotExecutor,
     private val config: DesktopLauncherConfig,
     private val packageInstaller: PackageInstaller = PackageInstaller(prootExecutor),
+    private val dnsManager: ProotDnsManager? = null,
 ) {
     private val _state = MutableStateFlow<DesktopLauncherState>(DesktopLauncherState.Idle)
     val state: StateFlow<DesktopLauncherState> = _state.asStateFlow()
@@ -51,7 +53,7 @@ class DesktopLauncher(
         _processOutput.tryEmit(message)
     }
 
-    suspend fun launch(
+    fun launch(
         environment: RootfsEnvironment,
         command: List<String>,
         requiredPackages: List<String> = emptyList(),
@@ -127,7 +129,10 @@ class DesktopLauncher(
                     _gpuMode.value, config, config.waylandRuntimeDir, shimSet,
                 ) + config.additionalBindMounts
 
-                // 7. Launch in proot
+                // 7. Write DNS config before launching in proot
+                dnsManager?.writeResolvConf(File(environment.rootfsPath))
+
+                // 8. Launch in proot
                 _state.value = DesktopLauncherState.LaunchingApp
                 _processOutput.tryEmit("Launching: ${command.joinToString(" ")}")
                 _state.value = DesktopLauncherState.Running
@@ -160,7 +165,7 @@ class DesktopLauncher(
         }
     }
 
-    suspend fun launchPreset(
+    fun launchPreset(
         environment: RootfsEnvironment,
         preset: DesktopAppPreset,
         scope: CoroutineScope,

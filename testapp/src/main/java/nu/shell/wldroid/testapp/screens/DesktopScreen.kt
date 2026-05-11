@@ -51,7 +51,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import nu.shell.wldroid.compositor.CompositorConfig
 import nu.shell.wldroid.compositor.CompositorSession
 import nu.shell.wldroid.launcher.DesktopAppPreset
@@ -111,13 +113,11 @@ class DesktopViewModel @Inject constructor(
     }
 
     fun launch(env: RootfsEnvironment, preset: DesktopAppPreset) {
-        viewModelScope.launch { launcher.launchPreset(env, preset, viewModelScope) }
+        launcher.launchPreset(env, preset, viewModelScope)
     }
 
     fun launchCustom(env: RootfsEnvironment, command: String) {
-        viewModelScope.launch {
-            launcher.launch(env, command.split(" "), scope = viewModelScope)
-        }
+        launcher.launch(env, command.split(" "), scope = viewModelScope)
     }
 
     fun stop() {
@@ -126,7 +126,7 @@ class DesktopViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        viewModelScope.launch { launcher.stop() }
+        runBlocking(Dispatchers.IO) { launcher.stop() }
     }
 }
 
