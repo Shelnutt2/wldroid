@@ -63,6 +63,7 @@ fun CompositorTestScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(0.35f)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
@@ -139,7 +140,7 @@ fun CompositorTestScreen(
         CompositorSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(0.65f),
             config = viewModel.compositorConfig,
             surfaceState = surfaceState,
             onStateChange = { viewModel.onStateChange(it) },
