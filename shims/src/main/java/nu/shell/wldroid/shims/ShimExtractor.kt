@@ -49,8 +49,9 @@ class ShimExtractor(private val context: Context) {
         val dir = File(targetDir)
         if (!dir.exists()) return false
 
-        return SHIM_ASSETS.all { (_, filename) ->
-            File(dir, filename).exists()
+        return SHIM_ASSETS.all { (assetPath, filename) ->
+            val subDir = File(assetPath).parent ?: ""
+            File(File(dir, subDir), filename).exists()
         }
     }
 
@@ -71,7 +72,9 @@ class ShimExtractor(private val context: Context) {
         val paths = mutableMapOf<String, String>()
 
         for ((assetPath, filename) in SHIM_ASSETS) {
-            val outFile = File(dir, filename)
+            val subDir = File(assetPath).parent ?: ""
+            val outDir = File(dir, subDir).also { it.mkdirs() }
+            val outFile = File(outDir, filename)
             val key = ASSET_TO_KEY[assetPath] ?: continue
 
             // Check if this shim is enabled in the config
@@ -93,11 +96,11 @@ class ShimExtractor(private val context: Context) {
         }
 
         return ShimSet(
-            drmShim = paths["drmShim"] ?: File(dir, "libdrm-shim.so").absolutePath,
-            drmWrapper = paths["drmWrapper"] ?: File(dir, "libdrm-wrapper.so").absolutePath,
-            gbmShim = paths["gbmShim"] ?: File(dir, "libgbm.so.1").absolutePath,
-            eglOverride = paths["eglOverride"] ?: File(dir, "libegl_override.so").absolutePath,
-            netstub = paths["netstub"] ?: File(dir, "libnetstub.so").absolutePath,
+            drmShim = paths["drmShim"] ?: File(File(dir, "drm-shim"), "libdrm-shim.so").absolutePath,
+            drmWrapper = paths["drmWrapper"] ?: File(File(dir, "drm-shim"), "libdrm-wrapper.so").absolutePath,
+            gbmShim = paths["gbmShim"] ?: File(File(dir, "gbm-shim"), "libgbm.so.1").absolutePath,
+            eglOverride = paths["eglOverride"] ?: File(File(dir, "egl-override"), "libegl_override.so").absolutePath,
+            netstub = paths["netstub"] ?: File(File(dir, "netstub"), "libnetstub.so").absolutePath,
         )
     }
 

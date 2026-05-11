@@ -56,7 +56,7 @@ object TestAppModule {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
         return VirglConfig(
             virglBinaryPath = "$nativeLibDir/libvirgl-test-server.so",
-            socketPath = File(context.cacheDir, "virgl/virgl.sock").absolutePath,
+            socketPath = File(context.cacheDir, "proot-tmp/.virgl_test").absolutePath,
             gpuMode = GpuMode.AUTO,
         )
     }

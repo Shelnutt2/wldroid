@@ -73,19 +73,38 @@ class GpuEnvironmentConfigTest {
 
     @Test fun bindMounts_includeWaylandRuntime() {
         val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime")
-        val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.SOFTWARE, config, "/host/runtime", testShimSet, null)
+        val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.SOFTWARE, config, "/host/runtime", testShimSet)
         assertThat(mounts.any { it.guestPath == "/tmp/xdg-runtime" }).isTrue()
     }
 
-    @Test fun bindMounts_includeVirglSocketDirWhenNeeded() {
+    @Test fun bindMounts_noVirglSocketDirMount() {
         val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime")
-        val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.VIRGL_GLES, config, "/host/runtime", testShimSet, "/host/virgl")
-        assertThat(mounts.any { it.hostPath == "/host/virgl" && it.guestPath == "/tmp" }).isTrue()
+        val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.VIRGL_GLES, config, "/host/runtime", testShimSet)
+        // VirGL socket is now in proot-tmp which is mapped to /tmp by proot itself,
+        // so no explicit virgl socket bind mount should exist
+        assertThat(mounts.none { it.guestPath == "/tmp" }).isTrue()
     }
 
-    @Test fun bindMounts_excludeVirglSocketDirForSoftware() {
-        val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime")
-        val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.SOFTWARE, config, "/host/runtime", testShimSet, "/host/virgl")
-        assertThat(mounts.none { it.hostPath == "/host/virgl" }).isTrue()
+    @Test fun guestLdPreload_virglGlesIncludesAll4() {
+        val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(GpuMode.VIRGL_GLES, "/opt/wldroid")
+        assertThat(ldPreload).contains("/opt/wldroid/drm-shim/libdrm-shim.so")
+        assertThat(ldPreload).contains("/opt/wldroid/gbm-shim/libgbm.so.1")
+        assertThat(ldPreload).contains("/opt/wldroid/egl-override/libegl_override.so")
+        assertThat(ldPreload).contains("/opt/wldroid/netstub/libnetstub.so")
+        assertThat(ldPreload.split(":")).hasSize(4)
+    }
+
+    @Test fun guestLdPreload_softwareExcludesGbmAndEgl() {
+        val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(GpuMode.SOFTWARE, "/opt/wldroid")
+        assertThat(ldPreload).contains("/opt/wldroid/drm-shim/libdrm-shim.so")
+        assertThat(ldPreload).contains("/opt/wldroid/netstub/libnetstub.so")
+        assertThat(ldPreload).doesNotContain("libgbm.so.1")
+        assertThat(ldPreload).doesNotContain("libegl_override.so")
+        assertThat(ldPreload.split(":")).hasSize(2)
+    }
+
+    @Test fun guestLdPreload_usesCustomBasePath() {
+        val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(GpuMode.VIRGL_GLES, "/custom/path")
+        assertThat(ldPreload).contains("/custom/path/drm-shim/libdrm-shim.so")
     }
 }

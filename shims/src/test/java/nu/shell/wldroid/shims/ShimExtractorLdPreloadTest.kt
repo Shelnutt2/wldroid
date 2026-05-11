@@ -12,11 +12,11 @@ import org.junit.Test
 class ShimExtractorLdPreloadTest {
 
     private val shimSet = ShimExtractor.ShimSet(
-        drmShim = "/guest/lib/libdrm-shim.so",
-        drmWrapper = "/guest/lib/libdrm-wrapper.so",
-        gbmShim = "/guest/lib/libgbm.so.1",
-        eglOverride = "/guest/lib/libegl_override.so",
-        netstub = "/guest/lib/libnetstub.so",
+        drmShim = "/guest/lib/drm-shim/libdrm-shim.so",
+        drmWrapper = "/guest/lib/drm-shim/libdrm-wrapper.so",
+        gbmShim = "/guest/lib/gbm-shim/libgbm.so.1",
+        eglOverride = "/guest/lib/egl-override/libegl_override.so",
+        netstub = "/guest/lib/netstub/libnetstub.so",
     )
 
     // ── LD_PRELOAD for different GPU modes ──
@@ -77,14 +77,15 @@ class ShimExtractorLdPreloadTest {
         assertThat(parts).hasSize(4)
         for (part in parts) {
             assertThat(part).startsWith("/guest/lib/")
+            assertThat(part).contains("/") // subdirectory structure
         }
     }
 
     @Test
     fun `LD_PRELOAD paths use full absolute paths from ShimSet`() {
         val ldPreload = createExtractorAndGetLdPreload("VIRGL_GLES")
-        assertThat(ldPreload).contains("/guest/lib/libdrm-shim.so")
-        assertThat(ldPreload).contains("/guest/lib/libnetstub.so")
+        assertThat(ldPreload).contains("/guest/lib/drm-shim/libdrm-shim.so")
+        assertThat(ldPreload).contains("/guest/lib/netstub/libnetstub.so")
     }
 
     @Test
