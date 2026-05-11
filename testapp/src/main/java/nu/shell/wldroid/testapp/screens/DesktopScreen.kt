@@ -85,6 +85,7 @@ class DesktopViewModel @Inject constructor(
     private val launcherConfig = DesktopLauncherConfig(
         shimExtractDir = File(context.cacheDir, "shims").absolutePath,
         waylandRuntimeDir = File(context.cacheDir, "wayland-runtime").absolutePath,
+        tempDir = File(context.cacheDir, "proot-tmp").absolutePath,
     )
 
     val launcher = DesktopLauncher(
