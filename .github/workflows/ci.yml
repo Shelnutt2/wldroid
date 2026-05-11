@@ -76,23 +76,32 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev wayland-protocols libdrm-dev libxkbcommon-dev
       - name: Setup Meson subprojects
         run: bash scripts/setup-meson-subprojects.sh
+      - name: Build wayland-scanner from source
+        run: |
+          cd compositor/native
+          # Ubuntu ships wayland-scanner 1.22.0 which cannot parse the
+          # deprecated-since attribute added in wayland 1.23.  Build the
+          # 1.24.0 scanner from our subproject so both the pkg-config
+          # version check AND code generation use a compatible binary.
+          WAYLAND_SRC="subprojects/wayland-1.24.0"
+          NATIVE_BUILD_DIR="builddir-native-scanner"
+          meson setup "$NATIVE_BUILD_DIR" "$WAYLAND_SRC" \
+            --default-library=static \
+            -Dtests=false -Ddocumentation=false -Ddtd_validation=false
+          ninja -C "$NATIVE_BUILD_DIR" src/wayland-scanner
+          echo "SCANNER_BIN=$(pwd)/$NATIVE_BUILD_DIR/src/wayland-scanner" >> "$GITHUB_ENV"
       - name: Build and test compositor (host)
         run: |
           cd compositor/native
-          # Create a wayland-scanner .pc override so Meson's
-          # dependency('wayland-scanner', native: true, version: '>=1.23.1')
-          # accepts the system scanner (Ubuntu ships 1.22.0, too old for the check).
-          SCANNER_BIN="$(which wayland-scanner)"
+          # Create pkg-config and native file for the self-built scanner.
           SCANNER_PC_DIR="$(mktemp -d)"
           cat > "$SCANNER_PC_DIR/wayland-scanner.pc" <<PCEOF
           wayland_scanner=$SCANNER_BIN
 
           Name: wayland-scanner
-          Description: Wayland scanner (pkg-config override)
+          Description: Wayland scanner (built from source)
           Version: 1.24.0
           PCEOF
-          # Use a native file so Meson reliably finds the .pc override
-          # (env var PKG_CONFIG_PATH is not always inherited in all modes).
           NATIVE_FILE="$(mktemp)"
           cat > "$NATIVE_FILE" <<NEOF
           [binaries]
