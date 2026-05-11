@@ -371,8 +371,8 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
     if (fd < 0) return
 
     withContext(Dispatchers.IO) {
+        val pfd = android.os.ParcelFileDescriptor.fromFd(fd)
         try {
-            val pfd = android.os.ParcelFileDescriptor.fromFd(fd)
             val fis = FileInputStream(pfd.fileDescriptor)
             val buffer = ByteArray(1)
             while (isActive) {
@@ -385,6 +385,12 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
             }
         } catch (_: Exception) {
             // Pipe closed or error — ignore
+        } finally {
+            try {
+                pfd.close()
+            } catch (_: Exception) {
+                // Already closed or invalid — ignore
+            }
         }
     }
 }
