@@ -53,6 +53,10 @@ val buildNative by tasks.registering(Exec::class) {
     outputs.dir("${project.layout.buildDirectory.get().asFile}/outputs/native")
 
     onlyIf { !project.hasProperty("skipShims") || project.property("skipShims") != "true" }
+
+    doFirst {
+        delete("${project.layout.buildDirectory.get().asFile}/outputs/native")
+    }
 }
 
 tasks.named("preBuild") {

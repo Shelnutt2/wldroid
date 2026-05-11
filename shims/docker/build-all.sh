@@ -29,7 +29,7 @@ bash "$NATIVE_DIR/drm-shim/build-drm-wrapper.sh" "$OUTPUT_DIR/drm-shim/libdrm-wr
 # 3. GBM Shim
 echo ""
 echo "--- [3/5] Building gbm-shim ---"
-bash "$NATIVE_DIR/gbm-shim/build-gbm-shim.sh" "$OUTPUT_DIR/gbm-shim/libgbm.so.1"
+bash "$NATIVE_DIR/gbm-shim/build-gbm-shim.sh" "$OUTPUT_DIR/gbm-shim/libgbm.so"
 
 # 4. EGL Override
 echo ""
