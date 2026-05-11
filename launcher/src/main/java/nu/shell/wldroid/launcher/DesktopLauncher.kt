@@ -1,6 +1,7 @@
 package nu.shell.wldroid.launcher
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import nu.shell.wldroid.virgl.GpuMode
 import nu.shell.wldroid.virgl.VirglSession
 import nu.shell.wldroid.virgl.VirglState
 import java.io.File
+import java.io.IOException
 
 /**
  * Orchestrates the two-phase desktop app launch pipeline:
@@ -68,8 +70,13 @@ class DesktopLauncher(
     @Volatile
     private var activeProcess: Process? = null
 
-    /** Emit a message to the process output stream (visible in the log panel). */
+    companion object {
+        private const val TAG = "DesktopLauncher"
+    }
+
+    /** Emit a message to the process output stream (visible in the log panel and logcat). */
     fun emitOutput(message: String) {
+        Log.d(TAG, message)
         _processOutput.tryEmit(message)
     }
 
@@ -85,11 +92,11 @@ class DesktopLauncher(
                 // 0. Set AHB_REGISTRY_SOCKET so compositor↔VirGL GPU buffer sharing works.
                 val ahbSocketPath = config.resolvedAhbSocketPath
                 Os.setenv("AHB_REGISTRY_SOCKET", ahbSocketPath, true)
-                _processOutput.tryEmit("AHB registry socket: $ahbSocketPath")
+                emitOutput("AHB registry socket: $ahbSocketPath")
 
                 // 1. Wait for compositor socket (with timeout)
                 _state.value = DesktopLauncherState.StartingCompositor
-                _processOutput.tryEmit("Starting compositor...")
+                emitOutput("Starting compositor...")
                 val socketPath = withTimeoutOrNull(10_000) {
                     compositorSession.socketPath.filterNotNull().first()
                 } ?: run {
@@ -98,71 +105,79 @@ class DesktopLauncher(
                         "Compositor failed to start within 10s (state=$currentState)"
                     )
                 }
-                _processOutput.tryEmit("✓ Compositor ready: $socketPath")
+                emitOutput("✓ Compositor ready: $socketPath")
 
                 // 2. Detect GPU mode
                 _state.value = DesktopLauncherState.DetectingGpu
-                _processOutput.tryEmit("Detecting GPU capabilities...")
+                emitOutput("Detecting GPU capabilities...")
                 virglSession.start()
                 val resolvedMode = virglSession.detectedGpuMode.value
                 _gpuMode.value = resolvedMode
-                _processOutput.tryEmit("✓ GPU mode: ${resolvedMode.displayName}")
+                emitOutput("✓ GPU mode: ${resolvedMode.displayName}")
 
                 // 3. Start VirGL if needed (with timeout)
                 if (resolvedMode.requiresVirglServer) {
                     _state.value = DesktopLauncherState.StartingVirgl
-                    _processOutput.tryEmit("Starting VirGL server...")
+                    emitOutput("Starting VirGL server...")
                     val virglReady = withTimeoutOrNull(10_000) {
-                        virglSession.state.first { it == VirglState.RUNNING || it == VirglState.STOPPED }
+                        virglSession.state.first {
+                            it == VirglState.RUNNING || it == VirglState.STOPPED || it == VirglState.ERROR
+                        }
                     }
                     if (virglReady != VirglState.RUNNING) {
                         _gpuMode.value = GpuMode.SOFTWARE
-                        _processOutput.tryEmit("⚠ VirGL server failed to start, falling back to SOFTWARE mode")
+                        val reason = when (virglReady) {
+                            VirglState.ERROR -> "VirGL entered ERROR state"
+                            VirglState.STOPPED -> "VirGL server stopped unexpectedly"
+                            null -> "VirGL server timed out after 10s"
+                            else -> "VirGL server in unexpected state: $virglReady"
+                        }
+                        emitOutput("⚠ $reason, falling back to SOFTWARE mode")
                     } else {
-                        _processOutput.tryEmit("✓ VirGL server running")
+                        emitOutput("✓ VirGL server running")
                     }
                 }
 
                 // 4. Extract shims
                 _state.value = DesktopLauncherState.ExtractingShims
-                _processOutput.tryEmit("Extracting shims...")
+                emitOutput("Extracting shims...")
                 val shimSet = shimExtractor.extractAll(config.shimExtractDir)
-                _processOutput.tryEmit("✓ Shims extracted")
+                emitOutput("✓ Shims extracted")
 
                 // ===== Phase 1: GPU Setup (separate proot invocation) =====
                 if (_gpuMode.value != GpuMode.SOFTWARE) {
                     _state.value = DesktopLauncherState.SetupGpu
-                    _processOutput.tryEmit("Setting up GPU drivers...")
+                    emitOutput("Setting up GPU drivers...")
                     val setupResult = gpuSetupManager.setup(
                         context = context,
                         environment = environment,
                         gpuMode = _gpuMode.value,
                         shimSet = shimSet,
                         config = config.gpuSetupConfig,
-                        onOutput = { _processOutput.tryEmit("[gpu] $it") },
+                        onOutput = { emitOutput("[gpu] $it") },
                     )
                     if (!setupResult.success) {
                         _gpuMode.value = GpuMode.SOFTWARE
-                        _processOutput.tryEmit(
+                        emitOutput(
                             "⚠ GPU setup failed (${setupResult.errorMessage}), falling back to SOFTWARE mode",
                         )
                         virglSession.stop()
                     } else {
-                        _processOutput.tryEmit("✓ GPU drivers configured")
+                        emitOutput("✓ GPU drivers configured")
                     }
                 }
 
                 // 5. Install app-specific packages if needed
                 if (requiredPackages.isNotEmpty()) {
                     _state.value = DesktopLauncherState.InstallingPackages
-                    _processOutput.tryEmit("Installing packages: ${requiredPackages.joinToString(", ")}")
+                    emitOutput("Installing packages: ${requiredPackages.joinToString(", ")}")
                     val exitCode = packageInstaller.installPackages(
                         environment,
                         requiredPackages,
-                        onOutput = { _processOutput.tryEmit("[install] $it") },
+                        onOutput = { emitOutput("[install] $it") },
                     )
                     if (exitCode != 0) {
-                        _processOutput.tryEmit("⚠ Package install exited with code $exitCode, continuing anyway...")
+                        emitOutput("⚠ Package install exited with code $exitCode, continuing anyway...")
                     }
                 }
 
@@ -171,7 +186,7 @@ class DesktopLauncher(
 
                 // ===== Phase 2: App Launch (separate proot invocation) =====
                 _state.value = DesktopLauncherState.LaunchingApp
-                _processOutput.tryEmit("Launching: ${command.joinToString(" ")}")
+                emitOutput("Launching: ${command.joinToString(" ")}")
 
                 // Extract launch-app.sh from assets
                 val cacheDir = File(config.tempDir)
@@ -205,14 +220,22 @@ class DesktopLauncher(
                 activeProcess = process
                 try {
                     val exitCode = withContext(Dispatchers.IO) {
-                        process.inputStream.bufferedReader().useLines { lines ->
-                            for (line in lines) {
-                                _processOutput.tryEmit(line)
+                        try {
+                            process.inputStream.bufferedReader().useLines { lines ->
+                                for (line in lines) {
+                                    emitOutput(line)
+                                }
+                            }
+                        } catch (e: IOException) {
+                            if (_state.value == DesktopLauncherState.Stopping) {
+                                Log.d(TAG, "Process output stream closed during stop: ${e.message}")
+                            } else {
+                                throw e
                             }
                         }
                         process.waitFor()
                     }
-                    _processOutput.tryEmit("Process exited with code $exitCode")
+                    emitOutput("Process exited with code $exitCode")
                     _state.value = DesktopLauncherState.Idle
                 } finally {
                     activeProcess = null
@@ -227,9 +250,9 @@ class DesktopLauncher(
                     phase = phase,
                     cause = e,
                 )
-                _processOutput.tryEmit("✗ Error during $phase: ${e.message}")
+                emitOutput("✗ Error during $phase: ${e.message}")
                 e.cause?.let { cause ->
-                    _processOutput.tryEmit("  Caused by: ${cause::class.simpleName}: ${cause.message}")
+                    emitOutput("  Caused by: ${cause::class.simpleName}: ${cause.message}")
                 }
             }
         }
