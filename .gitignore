@@ -41,3 +41,7 @@ compositor/native/subprojects/proot
 # But track .wrap files and packagefiles
 !compositor/native/subprojects/*.wrap
 !compositor/native/subprojects/packagefiles/
+
+# Downloaded talloc source (not a git submodule — fetched by build-proot.sh)
+external/talloc/
+
