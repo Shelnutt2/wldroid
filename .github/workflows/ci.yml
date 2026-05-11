@@ -84,6 +84,10 @@ jobs:
           # 1.24.0 scanner from our subproject so both the pkg-config
           # version check AND code generation use a compatible binary.
           WAYLAND_SRC="subprojects/wayland-1.24.0"
+          if [ ! -d "$WAYLAND_SRC" ]; then
+            echo "Downloading wayland source from wrap file..."
+            meson subprojects download wayland
+          fi
           NATIVE_BUILD_DIR="builddir-native-scanner"
           meson setup "$NATIVE_BUILD_DIR" "$WAYLAND_SRC" \
             --default-library=static \
