@@ -61,11 +61,21 @@ jobs:
       - name: Collect AARs
         run: |
           mkdir -p release-artifacts
-          cp compositor/build/outputs/aar/*-release.aar release-artifacts/compositor-release.aar || true
-          cp proot/build/outputs/aar/*-release.aar release-artifacts/proot-release.aar || true
-          cp virgl/build/outputs/aar/*-release.aar release-artifacts/virgl-release.aar || true
-          cp shims/build/outputs/aar/*-release.aar release-artifacts/shims-release.aar || true
-          cp ui/build/outputs/aar/*-release.aar release-artifacts/ui-release.aar || true
+          missing=()
+          for module in compositor proot virgl shims ui; do
+            aar=$(find "$module/build/outputs/aar/" -name "*-release.aar" 2>/dev/null | head -1)
+            if [ -n "$aar" ]; then
+              cp "$aar" "release-artifacts/${module}-release.aar"
+              echo "Collected: ${module}-release.aar"
+            else
+              echo "WARNING: No release AAR found for $module"
+              missing+=("$module")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: Missing required AARs: ${missing[*]}"
+            exit 1
+          fi
       - name: Upload AAR artifacts
         uses: actions/upload-artifact@v4
         with:
