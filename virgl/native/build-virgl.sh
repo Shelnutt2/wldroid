@@ -125,11 +125,10 @@ EPOXY_INSTALL="$BUILD_DIR/libepoxy-install"
 CROSS_DIR="$BUILD_DIR/cross"
 CROSS_FILE="$CROSS_DIR/android-aarch64.ini"
 
-if [ ! -f "$CROSS_FILE" ]; then
-    echo ""
-    echo "=== Generating meson cross-file ==="
-    mkdir -p "$CROSS_DIR"
-    cat > "$CROSS_FILE" <<EOF
+echo ""
+echo "=== Generating meson cross-file ==="
+mkdir -p "$CROSS_DIR"
+cat > "$CROSS_FILE" <<EOF
 [binaries]
 c = '$TOOLCHAIN/bin/${TARGET}-clang'
 cpp = '$TOOLCHAIN/bin/${TARGET}-clang++'
@@ -151,8 +150,7 @@ cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
 EOF
-    echo "  Cross-file: $CROSS_FILE"
-fi
+echo "  Cross-file: $CROSS_FILE"
 
 # ── Build libepoxy (static, cross-compiled) ──
 EPOXY_BUILD="$BUILD_DIR/libepoxy"
@@ -196,7 +194,8 @@ if [ ! -f "$VIRGL_BIN" ]; then
         --strip \
         -Dplatforms=egl \
         -Dtests=false \
-        -Dvenus=true \
+        # Venus disabled: requires libdrm cross-compile chain; enable in follow-up
+        -Dvenus=false \
         -Drender-server=true \
         -Drender-server-worker=thread
 
