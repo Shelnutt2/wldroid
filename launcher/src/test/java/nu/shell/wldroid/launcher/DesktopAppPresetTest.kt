@@ -1,6 +1,7 @@
 package nu.shell.wldroid.launcher
 
 import com.google.common.truth.Truth.assertThat
+import nu.shell.wldroid.virgl.GpuMode
 import org.junit.Test
 
 class DesktopAppPresetTest {
@@ -24,6 +25,30 @@ class DesktopAppPresetTest {
         }
     }
     @Test fun expectedPresetCount() {
-        assertThat(DesktopAppPreset.ALL).hasSize(7)
+        assertThat(DesktopAppPreset.ALL).hasSize(8)
+    }
+
+    @Test fun vkcube_requiresVulkanGpuMode() {
+        assertThat(DesktopAppPreset.VKCUBE.supportedGpuModes).isNotNull()
+        assertThat(DesktopAppPreset.VKCUBE.isCompatibleWith(GpuMode.VENUS)).isTrue()
+        assertThat(DesktopAppPreset.VKCUBE.isCompatibleWith(GpuMode.TURNIP_DIRECT)).isTrue()
+        assertThat(DesktopAppPreset.VKCUBE.isCompatibleWith(GpuMode.VIRGL_ZINK)).isFalse()
+        assertThat(DesktopAppPreset.VKCUBE.isCompatibleWith(GpuMode.VIRGL_GLES)).isFalse()
+        assertThat(DesktopAppPreset.VKCUBE.isCompatibleWith(GpuMode.SOFTWARE)).isFalse()
+    }
+
+    @Test fun unrestrictedPresets_compatibleWithAllModes() {
+        val unrestricted = DesktopAppPreset.ALL.filter { it.supportedGpuModes == null }
+        assertThat(unrestricted).isNotEmpty()
+        unrestricted.forEach { preset ->
+            GpuMode.entries.filter { it != GpuMode.AUTO }.forEach { mode ->
+                assertThat(preset.isCompatibleWith(mode)).isTrue()
+            }
+        }
+    }
+
+    @Test fun westonSimpleEgl_isUnrestricted() {
+        assertThat(DesktopAppPreset.WESTON_SIMPLE_EGL.supportedGpuModes).isNull()
+        assertThat(DesktopAppPreset.WESTON_SIMPLE_EGL.requiredPackages).contains("weston")
     }
 }

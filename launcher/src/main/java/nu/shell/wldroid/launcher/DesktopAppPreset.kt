@@ -1,5 +1,7 @@
 package nu.shell.wldroid.launcher
 
+import nu.shell.wldroid.virgl.GpuMode
+
 data class DesktopAppPreset(
     val id: String,
     val displayName: String,
@@ -7,7 +9,19 @@ data class DesktopAppPreset(
     val requiredPackages: List<String> = emptyList(),
     val description: String = "",
     val icon: String = "🖥",
+    /**
+     * GPU modes this preset is known to work with. `null` means the preset
+     * works on any mode (the common case for non-GPU-specific apps).
+     *
+     * When non-null, the UI should warn the user if the current GPU mode
+     * is not in the set — the app will likely fail or produce errors.
+     */
+    val supportedGpuModes: Set<GpuMode>? = null,
 ) {
+    /** Returns true when the preset is compatible with [mode], or has no mode restrictions. */
+    fun isCompatibleWith(mode: GpuMode): Boolean =
+        supportedGpuModes == null || mode in supportedGpuModes
+
     companion object {
         val TEST_PATTERN = DesktopAppPreset(
             id = "test_pattern",
@@ -33,13 +47,22 @@ data class DesktopAppPreset(
             description = "OpenGL ES2 test (rotating gears, Wayland native)",
             icon = "⚙",
         )
+        val WESTON_SIMPLE_EGL = DesktopAppPreset(
+            id = "weston_simple_egl",
+            displayName = "simple-egl",
+            command = listOf("weston-simple-egl"),
+            requiredPackages = listOf("weston"),
+            description = "Weston EGL test (animated triangle, works on all GPU modes)",
+            icon = "🔺",
+        )
         val VKCUBE = DesktopAppPreset(
             id = "vkcube",
             displayName = "vkcube",
             command = listOf("vkcube", "--wsi", "wayland"),
             requiredPackages = listOf("vulkan-tools"),
-            description = "Vulkan test cube",
+            description = "Vulkan test cube (requires real Vulkan: Venus or Turnip)",
             icon = "🟦",
+            supportedGpuModes = setOf(GpuMode.VENUS, GpuMode.TURNIP_DIRECT),
         )
         val XTERM = DesktopAppPreset(
             id = "xterm",
@@ -64,6 +87,9 @@ data class DesktopAppPreset(
             description = "Firefox web browser",
             icon = "🦊",
         )
-        val ALL = listOf(TEST_PATTERN, WESTON_TERMINAL, ES2GEARS, VKCUBE, XTERM, VSCODE, FIREFOX)
+        val ALL = listOf(
+            TEST_PATTERN, WESTON_TERMINAL, ES2GEARS, WESTON_SIMPLE_EGL,
+            VKCUBE, XTERM, VSCODE, FIREFOX,
+        )
     }
 }
