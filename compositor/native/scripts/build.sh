@@ -101,15 +101,16 @@ EOF
 SCANNER_BIN=""
 if command -v wayland-scanner >/dev/null 2>&1; then
     _candidate="$(command -v wayland-scanner)"
-    # wayland-scanner >= 1.22.0 required for protocol code generation
+    # wayland-scanner >= 1.24.0 required — wayland 1.24 protocol XML uses the
+    # deprecated-since attribute which older scanners (e.g. 1.22.0) reject.
     _ver=$("$_candidate" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
     _major=$(echo "$_ver" | cut -d. -f1)
     _minor=$(echo "$_ver" | cut -d. -f2)
-    if [ "$_major" -gt 1 ] || { [ "$_major" -eq 1 ] && [ "$_minor" -ge 22 ]; }; then
+    if [ "$_major" -gt 1 ] || { [ "$_major" -eq 1 ] && [ "$_minor" -ge 24 ]; }; then
         SCANNER_BIN="$_candidate"
         echo "Host wayland-scanner: $SCANNER_BIN (version $_ver)"
     else
-        echo "System wayland-scanner $_ver too old (need >= 1.22.0), will build from source"
+        echo "System wayland-scanner $_ver too old (need >= 1.24.0), will build from source"
     fi
 fi
 
@@ -123,7 +124,7 @@ if [ -z "$SCANNER_BIN" ]; then
         WAYLAND_SRC="$SCRIPT_DIR/../subprojects/wayland-1.24.0"
         if [ ! -d "$WAYLAND_SRC" ]; then
             echo "ERROR: Wayland source not found at $WAYLAND_SRC" >&2
-            echo "Run 'meson subprojects download wayland' in compositor/native/ or install wayland-scanner >= 1.22.0 on the system." >&2
+            echo "Run 'meson subprojects download wayland' in compositor/native/ or install wayland-scanner >= 1.24.0 on the system." >&2
             exit 1
         fi
         meson setup "$NATIVE_BUILD_DIR" "$WAYLAND_SRC" \
