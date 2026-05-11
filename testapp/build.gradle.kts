@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":proot"))
     implementation(project(":virgl"))
     implementation(project(":shims"))
+    implementation(project(":launcher"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
