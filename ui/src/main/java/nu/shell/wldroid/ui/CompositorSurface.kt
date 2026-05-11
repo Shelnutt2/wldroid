@@ -178,8 +178,8 @@ private class CompositorSurfaceView(
                 if (events != null) {
                     for (event in events) {
                         val action = when (event.action) {
-                            KeyEvent.ACTION_DOWN -> 1
-                            KeyEvent.ACTION_UP -> 0
+                            KeyEvent.ACTION_DOWN -> 0
+                            KeyEvent.ACTION_UP -> 1
                             else -> continue
                         }
                         input.sendKeyEvent(
@@ -202,13 +202,13 @@ private class CompositorSurfaceView(
                 val now = System.currentTimeMillis()
                 // Send backspace key events for characters before cursor
                 repeat(beforeLength) {
-                    input.sendKeyEvent(KeyEvent.KEYCODE_DEL, 1, now)
                     input.sendKeyEvent(KeyEvent.KEYCODE_DEL, 0, now)
+                    input.sendKeyEvent(KeyEvent.KEYCODE_DEL, 1, now)
                 }
                 // Send forward-delete for characters after cursor
                 repeat(afterLength) {
-                    input.sendKeyEvent(KeyEvent.KEYCODE_FORWARD_DEL, 1, now)
                     input.sendKeyEvent(KeyEvent.KEYCODE_FORWARD_DEL, 0, now)
+                    input.sendKeyEvent(KeyEvent.KEYCODE_FORWARD_DEL, 1, now)
                 }
                 return true
             }
@@ -268,8 +268,8 @@ private class CompositorSurfaceView(
         if (event.keyCode in SYSTEM_KEY_CODES) return false
 
         val action = when (event.action) {
-            KeyEvent.ACTION_DOWN -> 1
-            KeyEvent.ACTION_UP -> 0
+            KeyEvent.ACTION_DOWN -> 0
+            KeyEvent.ACTION_UP -> 1
             else -> return false
         }
         input.sendKeyEvent(event.keyCode, action, event.eventTime)
@@ -328,12 +328,22 @@ private class CompositorSurfaceView(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 input.sendPointerButton(
-                    pointerButtonFromMotionEvent(event), 1, event.eventTime,
+                    pointerButtonFromMotionEvent(event), 0, event.eventTime,
                 )
             }
             MotionEvent.ACTION_UP -> {
                 input.sendPointerButton(
-                    pointerButtonFromMotionEvent(event), 0, event.eventTime,
+                    pointerButtonFromMotionEvent(event), 1, event.eventTime,
+                )
+            }
+            MotionEvent.ACTION_BUTTON_PRESS -> {
+                input.sendPointerButton(
+                    pointerButtonFromActionButton(event.actionButton), 0, event.eventTime,
+                )
+            }
+            MotionEvent.ACTION_BUTTON_RELEASE -> {
+                input.sendPointerButton(
+                    pointerButtonFromActionButton(event.actionButton), 1, event.eventTime,
                 )
             }
         }
@@ -356,6 +366,15 @@ private class CompositorSurfaceView(
             return when {
                 event.isButtonPressed(MotionEvent.BUTTON_SECONDARY) -> BTN_RIGHT
                 event.isButtonPressed(MotionEvent.BUTTON_TERTIARY) -> BTN_MIDDLE
+                else -> BTN_LEFT
+            }
+        }
+
+        private fun pointerButtonFromActionButton(actionButton: Int): Int {
+            return when (actionButton) {
+                MotionEvent.BUTTON_PRIMARY -> BTN_LEFT
+                MotionEvent.BUTTON_SECONDARY -> BTN_RIGHT
+                MotionEvent.BUTTON_TERTIARY -> BTN_MIDDLE
                 else -> BTN_LEFT
             }
         }
