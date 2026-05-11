@@ -65,7 +65,7 @@ install_mesa_packages() {
     local packages=""
     case "${WLDROID_GPU_MODE}" in
         VIRGL_GLES|VIRGL_ZINK)
-            packages="libegl-mesa0 libgl1-mesa-dri libgles2 libgbm1 mesa-utils"
+            packages="libegl-mesa0 libgl1-mesa-dri libgles2 libgbm1 mesa-vulkan-drivers mesa-utils"
             ;;
         TURNIP_DIRECT)
             packages="mesa-vulkan-drivers libegl-mesa0 libgl1-mesa-dri libgles2 libgbm1"
