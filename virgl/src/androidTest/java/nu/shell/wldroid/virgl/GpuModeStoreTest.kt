@@ -93,10 +93,10 @@ class GpuModeStoreTest {
     @Test
     fun virglStateEnumContainsAllValues() {
         val states = VirglState.entries
-        assertThat(states).hasSize(7)
+        assertThat(states).hasSize(8)
         assertThat(states.map { it.name }).containsExactly(
             "IDLE", "DETECTING_GPU", "STARTING", "RUNNING",
-            "UNHEALTHY", "STOPPING", "STOPPED",
+            "UNHEALTHY", "STOPPING", "STOPPED", "ERROR",
         )
     }
 }
