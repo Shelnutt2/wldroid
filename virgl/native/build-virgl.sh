@@ -194,7 +194,6 @@ if [ ! -f "$VIRGL_BIN" ]; then
         --strip \
         -Dplatforms=egl \
         -Dtests=false \
-        # Venus disabled: requires libdrm cross-compile chain; enable in follow-up
         -Dvenus=false \
         -Drender-server=true \
         -Drender-server-worker=thread
