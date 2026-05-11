@@ -91,9 +91,18 @@ jobs:
           Description: Wayland scanner (pkg-config override)
           Version: 1.24.0
           PCEOF
-          export PKG_CONFIG_PATH="$SCANNER_PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          # Use a native file so Meson reliably finds the .pc override
+          # (env var PKG_CONFIG_PATH is not always inherited in all modes).
+          NATIVE_FILE="$(mktemp)"
+          cat > "$NATIVE_FILE" <<NEOF
+          [binaries]
+          wayland-scanner = '$SCANNER_BIN'
+
+          [built-in options]
+          pkg_config_path = ['$SCANNER_PC_DIR']
+          NEOF
           # Disable renderers and backends — host tests don't need EGL/GPU
-          meson setup builddir --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends=
+          meson setup builddir --native-file "$NATIVE_FILE" --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends=
           meson test -C builddir --print-errorlogs --suite wldroid-compositor
       - name: Build and test GBM shim (host)
         run: |

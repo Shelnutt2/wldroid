@@ -149,17 +149,23 @@ Name: wayland-scanner
 Description: Wayland scanner (provided by build system)
 Version: 1.24.0
 EOF
-export PKG_CONFIG_PATH="$SCANNER_PC_DIR${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 echo "Scanner .pc override: $SCANNER_PC_DIR/wayland-scanner.pc"
 
 # ── Generate native file (tells cross build where host scanner lives) ──
 # This is essential: --wrap-mode=forcefallback would otherwise try to build
 # wayland-scanner from the wayland subproject for the cross target (aarch64),
 # producing a binary that can't execute on the build host.
+#
+# pkg_config_path is set here (not via env var) so Meson reliably finds the
+# wayland-scanner .pc override during native dependency lookups in cross-build
+# mode. Meson's cross-build pkg-config does not always inherit shell env vars.
 NATIVE_FILE="$CROSS_DIR/native.ini"
 cat > "$NATIVE_FILE" <<EOF
 [binaries]
 wayland-scanner = '$SCANNER_BIN'
+
+[built-in options]
+pkg_config_path = ['$SCANNER_PC_DIR']
 EOF
 
 # ── Detect stale builddir (missing native file in saved config) ──
