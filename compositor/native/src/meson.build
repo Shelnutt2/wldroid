@@ -19,7 +19,7 @@ endif
 # We add the protocol build directory to our include path via c_args.
 # NOTE: Update this path when upgrading the wlroots version in external/.
 # Meson subprojects don't expose their source dir programmatically, so we hardcode it.
-wlroots_protocol_dir = meson.project_build_root() / 'subprojects' / 'wlroots-0.19.2' / 'protocol'
+wlroots_protocol_dir = meson.project_build_root() / 'subprojects' / 'wlroots' / 'protocol'
 
 # ---- Text input protocol generation ----
 wayland_scanner_prog = find_program('wayland-scanner', native: true)
