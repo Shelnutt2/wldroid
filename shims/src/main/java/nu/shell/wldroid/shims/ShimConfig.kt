@@ -12,7 +12,7 @@ data class ShimConfig(
 ) {
     companion object {
         fun forGpuMode(gpuMode: String): ShimConfig = when (gpuMode) {
-            "SOFTWARE" -> ShimConfig(enableGbmShim = false, enableEglOverride = false)
+            "SOFTWARE" -> ShimConfig(enableDrmShim = false, enableDrmWrapper = false, enableGbmShim = false, enableEglOverride = false)
             "TURNIP_DIRECT" -> ShimConfig(enableEglOverride = false)
             else -> ShimConfig() // All shims for VirGL modes
         }

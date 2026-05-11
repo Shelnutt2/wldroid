@@ -102,7 +102,15 @@ class VirglSession(
         )
 
     private fun resolveGpuMode(): GpuMode {
-        if (config.gpuMode != GpuMode.AUTO) return config.gpuMode
+        if (config.gpuMode != GpuMode.AUTO) {
+            // Validate that TURNIP_DIRECT is actually available — KGSL must be accessible.
+            if (config.gpuMode == GpuMode.TURNIP_DIRECT && gpuDetector != null && !gpuDetector.isKgslAccessible()) {
+                // KGSL not accessible; fall back to auto-detect instead of using invalid override.
+                _state.value = VirglState.DETECTING_GPU
+                return gpuDetector.detectBestGpuMode()
+            }
+            return config.gpuMode
+        }
         _state.value = VirglState.DETECTING_GPU
         return gpuDetector?.detectBestGpuMode() ?: GpuMode.VIRGL_GLES
     }

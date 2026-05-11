@@ -51,6 +51,9 @@ class DesktopLauncher(
     @Volatile
     private var launchJob: Job? = null
 
+    @Volatile
+    private var activeProcess: Process? = null
+
     /** Emit a message to the process output stream (visible in the log panel). */
     fun emitOutput(message: String) {
         _processOutput.tryEmit(message)
@@ -145,16 +148,23 @@ class DesktopLauncher(
                 _processOutput.tryEmit("Launching: ${command.joinToString(" ")}")
                 _state.value = DesktopLauncherState.Running
 
-                val exitCode = prootExecutor.runInProot(
-                    environment = environment,
-                    command = command,
-                    envVars = envVars,
-                    bindMounts = bindMounts,
-                    onOutput = { _processOutput.tryEmit(it) },
-                )
-
-                _processOutput.tryEmit("Process exited with code $exitCode")
-                _state.value = DesktopLauncherState.Idle
+                val pb = prootExecutor.buildCommand(environment, command, envVars, bindMounts)
+                val process = pb.start()
+                activeProcess = process
+                try {
+                    val exitCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        process.inputStream.bufferedReader().useLines { lines ->
+                            for (line in lines) {
+                                _processOutput.tryEmit(line)
+                            }
+                        }
+                        process.waitFor()
+                    }
+                    _processOutput.tryEmit("Process exited with code $exitCode")
+                    _state.value = DesktopLauncherState.Idle
+                } finally {
+                    activeProcess = null
+                }
             } catch (e: CancellationException) {
                 _state.value = DesktopLauncherState.Idle
                 throw e
@@ -183,6 +193,20 @@ class DesktopLauncher(
 
     suspend fun stop() {
         _state.value = DesktopLauncherState.Stopping
+
+        // Gracefully terminate the proot process: SIGTERM → wait → SIGKILL
+        activeProcess?.let { process ->
+            process.destroy() // SIGTERM
+            val exited = withTimeoutOrNull(3_000) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    process.waitFor()
+                }
+            }
+            if (exited == null) {
+                process.destroyForcibly() // SIGKILL
+            }
+        }
+
         launchJob?.cancelAndJoin()
         launchJob = null
         virglSession.stop()
