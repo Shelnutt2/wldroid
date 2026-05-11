@@ -268,16 +268,20 @@ class DesktopLauncher(
     suspend fun stop() {
         _state.value = DesktopLauncherState.Stopping
 
-        // Gracefully terminate the proot process: SIGTERM → wait → SIGKILL
+        // Gracefully terminate the proot process: SIGTERM → wait → SIGKILL.
+        // We use Process.waitFor(timeout, unit) instead of coroutine timeout
+        // because Process.waitFor() is a blocking call that doesn't respond to
+        // coroutine cancellation — withTimeoutOrNull would never actually fire.
         activeProcess?.let { process ->
             process.destroy() // SIGTERM
-            val exited = withTimeoutOrNull(3_000) {
-                withContext(Dispatchers.IO) {
-                    process.waitFor()
-                }
+            val exited = withContext(Dispatchers.IO) {
+                process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
             }
-            if (exited == null) {
+            if (!exited) {
                 process.destroyForcibly() // SIGKILL
+                withContext(Dispatchers.IO) {
+                    process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+                }
             }
         }
 
