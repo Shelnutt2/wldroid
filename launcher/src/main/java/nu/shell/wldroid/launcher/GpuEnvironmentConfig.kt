@@ -32,22 +32,24 @@ object GpuEnvironmentConfig {
             }
             GpuMode.VIRGL_GLES -> {
                 vars["MESA_GL_VERSION_OVERRIDE"] = "3.3"
+                vars["MESA_GLES_VERSION_OVERRIDE"] = "3.2"
                 vars["VTEST_SOCK"] = "/tmp/.virgl_test"
             }
             GpuMode.VIRGL_ZINK -> {
                 vars["MESA_GL_VERSION_OVERRIDE"] = "4.0"
+                vars["MESA_GLES_VERSION_OVERRIDE"] = "3.2"
                 vars["VTEST_SOCK"] = "/tmp/.virgl_test"
                 vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/lvp_icd.aarch64.json"
-                vars["GALLIUM_DRIVER"] = "zink"
             }
             GpuMode.VENUS -> {
                 vars["GALLIUM_DRIVER"] = "zink"
-                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/virtio_icd.aarch64.json"
+                vars["MESA_GLES_VERSION_OVERRIDE"] = "3.2"
+                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/virtio_icd.json"
                 vars["VTEST_SOCK"] = "/tmp/.virgl_test"
             }
             GpuMode.TURNIP_DIRECT -> {
-                vars["GALLIUM_DRIVER"] = "zink"
-                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+                vars["MESA_VK_WSI_PRESENT_MODE"] = "fifo"
+                vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/lvp_icd.aarch64.json"
             }
             GpuMode.AUTO -> {
                 // AUTO should be resolved before calling this; treat as SOFTWARE fallback
