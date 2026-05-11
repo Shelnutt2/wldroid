@@ -91,4 +91,35 @@ class GpuEnvironmentConfigTest {
     fun auto_throwsException() {
         GpuEnvironmentConfig.buildProcessEnvVars(GpuMode.AUTO, "wayland-0", "/host/wayland-runtime")
     }
+
+    @Test fun xwaylandDisplay_setsDISPLAY() {
+        val vars = GpuEnvironmentConfig.buildProcessEnvVars(
+            GpuMode.SOFTWARE, "wayland-0", "/host/wayland-runtime",
+            xwaylandDisplayName = ":0",
+        )
+        assertThat(vars).containsEntry("DISPLAY", ":0")
+    }
+
+    @Test fun xwaylandDisplay_customNumber() {
+        val vars = GpuEnvironmentConfig.buildProcessEnvVars(
+            GpuMode.SOFTWARE, "wayland-0", "/host/wayland-runtime",
+            xwaylandDisplayName = ":3",
+        )
+        assertThat(vars).containsEntry("DISPLAY", ":3")
+    }
+
+    @Test fun xwaylandDisplay_emptyString_noDISPLAY() {
+        val vars = GpuEnvironmentConfig.buildProcessEnvVars(
+            GpuMode.SOFTWARE, "wayland-0", "/host/wayland-runtime",
+            xwaylandDisplayName = "",
+        )
+        assertThat(vars).doesNotContainKey("DISPLAY")
+    }
+
+    @Test fun xwaylandDisplay_defaultParam_noDISPLAY() {
+        val vars = GpuEnvironmentConfig.buildProcessEnvVars(
+            GpuMode.SOFTWARE, "wayland-0", "/host/wayland-runtime",
+        )
+        assertThat(vars).doesNotContainKey("DISPLAY")
+    }
 }
