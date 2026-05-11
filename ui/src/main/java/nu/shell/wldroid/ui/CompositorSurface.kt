@@ -372,7 +372,7 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
 
     withContext(Dispatchers.IO) {
         try {
-            val pfd = android.os.ParcelFileDescriptor.adoptFd(fd)
+            val pfd = android.os.ParcelFileDescriptor.fromFd(fd)
             val fis = FileInputStream(pfd.fileDescriptor)
             val buffer = ByteArray(1)
             while (isActive) {
