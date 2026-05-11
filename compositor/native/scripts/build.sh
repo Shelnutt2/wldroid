@@ -14,8 +14,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NATIVE_DIR="$SCRIPT_DIR/.."
-# Project root is three levels up: compositor/native/scripts/ -> project root
-PROJECT_ROOT="$NATIVE_DIR/../../.."
+# Project root is two levels up from native dir: compositor/native/ -> project root
+PROJECT_ROOT="$NATIVE_DIR/../.."
 EXTERNAL_DIR="$PROJECT_ROOT/external"
 JNILIBS_DIR="$PROJECT_ROOT/compositor/src/main/jniLibs/arm64-v8a"
 BUILD_DIR="$NATIVE_DIR/builddir"
@@ -59,6 +59,9 @@ if [ "${1:-}" = "--setup-only" ]; then
     SETUP_ONLY=true
     echo "Setup-only mode: will configure but skip build"
 fi
+
+# ── Ensure Meson subproject symlinks exist (forked deps) ──
+bash "$PROJECT_ROOT/scripts/setup-meson-subprojects.sh"
 
 # ── Generate cross-file (NDK paths are machine-specific) ──
 CROSS_DIR="$NATIVE_DIR/builddir-cross"
