@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * High-level compositor session manager with observable state.
@@ -21,6 +22,9 @@ class CompositorSession(private val config: CompositorConfig) {
 
     private val _socketPath = MutableStateFlow<String?>(null)
     val socketPath: StateFlow<String?> = _socketPath.asStateFlow()
+
+    /** Guard to prevent double-stop (matches original CompositorActivity pattern). */
+    private val stopRequested = AtomicBoolean(false)
 
     fun start(surface: Surface) {
         _state.value = CompositorState.STARTING
@@ -65,13 +69,41 @@ class CompositorSession(private val config: CompositorConfig) {
         dir.listFiles()?.filter { it.name.startsWith("wayland-") }?.forEach { it.delete() }
     }
 
+    /**
+     * Stop the compositor synchronously (blocks until the event-loop thread
+     * exits and resources are destroyed).  Safe to call multiple times —
+     * subsequent calls are no-ops.
+     */
     fun stop() {
+        if (!stopRequested.compareAndSet(false, true)) return
         _state.value = CompositorState.STOPPING
         try {
             server.nativeStopCompositor()
         } finally {
             _state.value = CompositorState.STOPPED
         }
+    }
+
+    /**
+     * Request compositor shutdown on a background thread so the caller
+     * (typically the `surfaceDestroyed` callback) is not blocked.
+     *
+     * This avoids a SIGSEGV on Mali GPUs where destroying the EGL context
+     * inside the `surfaceDestroyed` stack frame causes a NULL-pointer
+     * dereference in the driver — the native window is still being torn
+     * down on the UI thread at that point.  Running the shutdown on a
+     * separate thread lets Android finish the surface teardown first.
+     */
+    fun stopAsync() {
+        if (!stopRequested.compareAndSet(false, true)) return
+        _state.value = CompositorState.STOPPING
+        Thread {
+            try {
+                server.nativeStopCompositor()
+            } finally {
+                _state.value = CompositorState.STOPPED
+            }
+        }.start()
     }
 
     fun refreshClientCount() {
