@@ -25,6 +25,12 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDirs("${project.layout.buildDirectory.get().asFile}/outputs/native")
+        }
+    }
 }
 
 // ── Cross-compile DRM/GBM/EGL/netstub shims for Android arm64 ──
