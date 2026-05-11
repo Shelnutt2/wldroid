@@ -13,6 +13,8 @@ data class DesktopLauncherConfig(
     val shimGuestBasePath: String = "/opt/wldroid",
     /** Configuration for the GPU setup phase (Phase 1). */
     val gpuSetupConfig: GpuSetupConfig = GpuSetupConfig(),
+    /** Configuration for XWayland (X11 app support). */
+    val xwaylandConfig: XWaylandConfig = XWaylandConfig(),
     val additionalEnvVars: Map<String, String> = emptyMap(),
     val additionalBindMounts: List<BindMount> = emptyList(),
 ) {

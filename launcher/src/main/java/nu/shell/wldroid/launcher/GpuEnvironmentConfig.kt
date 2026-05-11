@@ -22,6 +22,8 @@ object GpuEnvironmentConfig {
      * @param waylandRuntimeDir Host path to the Wayland runtime directory (used as XDG_RUNTIME_DIR
      *   with an identity bind mount so proot resolves it without /tmp shadow conflicts)
      * @param debugEnabled Whether to enable verbose Mesa/EGL debug logging
+     * @param xwaylandDisplayName X11 display name (e.g., ":0") to set as DISPLAY.
+     *   Empty string means DISPLAY is not set (X11 apps won't attempt connections).
      * @return Map of environment variable name to value
      */
     fun buildProcessEnvVars(
@@ -29,6 +31,7 @@ object GpuEnvironmentConfig {
         waylandSocketName: String,
         waylandRuntimeDir: String,
         debugEnabled: Boolean = false,
+        xwaylandDisplayName: String = "",
     ): Map<String, String> {
         val vars = mutableMapOf(
             "WAYLAND_DISPLAY" to waylandSocketName,
@@ -41,6 +44,12 @@ object GpuEnvironmentConfig {
             "ELECTRON_ENABLE_LOGGING" to "1",
             "ELECTRON_ENABLE_STACK_DUMPING" to "1",
         )
+
+        // Set DISPLAY for X11 apps running through XWayland.
+        // This overrides the default DISPLAY="" in ProotExecutor via envVars putAll().
+        if (xwaylandDisplayName.isNotEmpty()) {
+            vars["DISPLAY"] = xwaylandDisplayName
+        }
 
         if (debugEnabled) {
             vars["WLDROID_DEBUG"] = "1"
