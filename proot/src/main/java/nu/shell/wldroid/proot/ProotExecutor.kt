@@ -42,8 +42,9 @@ class ProotExecutor(private val config: ProotConfig) {
         command: List<String>,
         envVars: Map<String, String> = emptyMap(),
         bindMounts: List<BindMount> = emptyList(),
+        guestEnvVars: Map<String, String> = emptyMap(),
     ): ProcessBuilder {
-        val cmd = buildProotCommand(environment, command, envVars, bindMounts)
+        val cmd = buildProotCommand(environment, command, envVars, bindMounts, guestEnvVars)
         val pb = ProcessBuilder(cmd.args)
         // Clear the inherited Android environment to avoid polluting the guest
         // with host-specific vars (e.g., Android PATH, BOOTCLASSPATH, etc.)
@@ -68,9 +69,10 @@ class ProotExecutor(private val config: ProotConfig) {
         command: List<String>,
         envVars: Map<String, String> = emptyMap(),
         bindMounts: List<BindMount> = emptyList(),
+        guestEnvVars: Map<String, String> = emptyMap(),
         onOutput: ((String) -> Unit)? = null,
     ): Int = withContext(Dispatchers.IO) {
-        val pb = buildCommand(environment, command, envVars, bindMounts)
+        val pb = buildCommand(environment, command, envVars, bindMounts, guestEnvVars)
         val process = pb.start()
 
         if (onOutput != null) {
@@ -98,6 +100,7 @@ class ProotExecutor(private val config: ProotConfig) {
         command: List<String>,
         envVars: Map<String, String> = emptyMap(),
         extraBindMounts: List<BindMount> = emptyList(),
+        guestEnvVars: Map<String, String> = emptyMap(),
     ): ProotCommand {
         val rootfsPath = environment.rootfsPath
 
@@ -156,6 +159,15 @@ class ProotExecutor(private val config: ProotConfig) {
             prootArgs.add("${mount.hostPath}:${mount.guestPath}")
         }
 
+        // Guest-only env vars (e.g. LD_PRELOAD with guest paths) are injected via
+        // /usr/bin/env inside the proot guest, NOT on the host ProcessBuilder environment.
+        // This prevents the host dynamic linker from trying to resolve guest-side paths.
+        if (guestEnvVars.isNotEmpty()) {
+            prootArgs.add("/usr/bin/env")
+            for ((key, value) in guestEnvVars) {
+                prootArgs.add("$key=$value")
+            }
+        }
         prootArgs.addAll(command)
 
         val processEnv = buildMap {
