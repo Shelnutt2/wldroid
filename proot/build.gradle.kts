@@ -35,6 +35,21 @@ val buildNative by tasks.registering(Exec::class) {
 
     commandLine("bash", "${projectDir}/native/build-proot.sh")
 
+    // Inputs: external proot sources, build script, patches
+    inputs.files(fileTree("${rootProject.projectDir}/external/proot/src") {
+        include("**/*.c", "**/*.h", "**/Makefile", "**/GNUmakefile")
+        exclude("**/test/**", "**/tests/**", "**/docs/**")
+    })
+    inputs.file("native/build-proot.sh")
+    inputs.dir("native/patches")
+    inputs.property("ndkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(
+        providers.environmentVariable("ANDROID_NDK")
+    ).orElse(""))
+
+    // Outputs: two .so files
+    outputs.file("src/main/jniLibs/arm64-v8a/libproot.so")
+    outputs.file("src/main/jniLibs/arm64-v8a/libproot-loader.so")
+
     onlyIf { !project.hasProperty("skipProot") || project.property("skipProot") != "true" }
 }
 
