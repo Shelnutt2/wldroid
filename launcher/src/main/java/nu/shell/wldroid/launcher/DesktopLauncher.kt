@@ -20,6 +20,7 @@ import nu.shell.wldroid.proot.ProotDnsManager
 import nu.shell.wldroid.proot.ProotExecutor
 import nu.shell.wldroid.proot.RootfsEnvironment
 import nu.shell.wldroid.shims.ShimExtractor
+import android.system.Os
 import nu.shell.wldroid.virgl.GpuMode
 import nu.shell.wldroid.virgl.VirglSession
 import nu.shell.wldroid.virgl.VirglState
@@ -64,6 +65,11 @@ class DesktopLauncher(
         launchJob?.cancel()
         launchJob = scope.launch {
             try {
+                // 0. Set AHB_REGISTRY_SOCKET so compositor↔VirGL GPU buffer sharing works.
+                val ahbSocketPath = config.resolvedAhbSocketPath
+                Os.setenv("AHB_REGISTRY_SOCKET", ahbSocketPath, true)
+                _processOutput.tryEmit("AHB registry socket: $ahbSocketPath")
+
                 // 1. Wait for compositor socket (with timeout)
                 _state.value = DesktopLauncherState.StartingCompositor
                 _processOutput.tryEmit("Starting compositor...")

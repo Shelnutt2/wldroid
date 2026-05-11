@@ -15,6 +15,7 @@ class CompositorConfigTest {
         assertTrue(config.xwaylandEnabled)
         assertEquals("AUTO", config.gpuMode)
         assertFalse(config.testClientEnabled)
+        assertEquals("", config.ahbRegistrySocketPath)
     }
 
     @Test

@@ -77,13 +77,13 @@ class GpuEnvironmentConfigTest {
     }
 
     @Test fun bindMounts_includeWaylandRuntime() {
-        val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime")
+        val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime", tempDir = "/host/tmp")
         val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.SOFTWARE, config, "/host/runtime", testShimSet)
         assertThat(mounts.any { it.guestPath == "/tmp/xdg-runtime" }).isTrue()
     }
 
     @Test fun bindMounts_noVirglSocketDirMount() {
-        val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime")
+        val config = DesktopLauncherConfig(shimExtractDir = "/test", waylandRuntimeDir = "/host/runtime", tempDir = "/host/tmp")
         val mounts = GpuEnvironmentConfig.buildBindMounts(GpuMode.VIRGL_GLES, config, "/host/runtime", testShimSet)
         // VirGL socket is now in proot-tmp which is mapped to /tmp by proot itself,
         // so no explicit virgl socket bind mount should exist

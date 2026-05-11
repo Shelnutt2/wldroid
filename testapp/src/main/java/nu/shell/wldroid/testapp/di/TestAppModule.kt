@@ -35,6 +35,7 @@ object TestAppModule {
             cacheDir = context.cacheDir.absolutePath,
             xkbBasePath = File(context.filesDir, "xkb").absolutePath,
             testClientEnabled = true,
+            ahbRegistrySocketPath = File(context.cacheDir, "proot-tmp/.ahb_registry").absolutePath,
         )
 
     @Provides
