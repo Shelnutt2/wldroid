@@ -83,3 +83,7 @@ dependencies {
     androidTestImplementation(libs.coroutines.test)
 }
 
+
+extra["publishArtifactId"] = "wldroid-compositor"
+extra["publishDescription"] = "Core Wayland compositor with wlroots backend for Android"
+apply(from = "${rootProject.projectDir}/gradle/publishing.gradle.kts")
