@@ -21,6 +21,8 @@ object GpuEnvironmentConfig {
             "GDK_BACKEND" to "wayland",
             "QT_QPA_PLATFORM" to "wayland",
             "UV_USE_IO_URING" to "0",
+            "ELECTRON_ENABLE_LOGGING" to "1",
+            "ELECTRON_ENABLE_STACK_DUMPING" to "1",
         )
         if (ldPreload.isNotEmpty()) {
             vars["LD_PRELOAD"] = ldPreload
@@ -43,11 +45,13 @@ object GpuEnvironmentConfig {
             }
             GpuMode.VENUS -> {
                 vars["GALLIUM_DRIVER"] = "zink"
+                vars["MESA_GL_VERSION_OVERRIDE"] = "4.0"
                 vars["MESA_GLES_VERSION_OVERRIDE"] = "3.2"
                 vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/virtio_icd.json"
                 vars["VTEST_SOCK"] = "/tmp/.virgl_test"
             }
             GpuMode.TURNIP_DIRECT -> {
+                vars["GALLIUM_DRIVER"] = "zink"
                 vars["MESA_VK_WSI_PRESENT_MODE"] = "fifo"
                 vars["VK_DRIVER_FILES"] = "/usr/share/vulkan/icd.d/lvp_icd.aarch64.json"
             }

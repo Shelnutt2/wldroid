@@ -23,6 +23,8 @@ class GpuEnvironmentConfigTest {
             assertThat(vars).containsEntry("QT_QPA_PLATFORM", "wayland")
             assertThat(vars).containsEntry("UV_USE_IO_URING", "0")
             assertThat(vars).containsEntry("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
+            assertThat(vars).containsEntry("ELECTRON_ENABLE_LOGGING", "1")
+            assertThat(vars).containsEntry("ELECTRON_ENABLE_STACK_DUMPING", "1")
         }
     }
 
@@ -52,6 +54,7 @@ class GpuEnvironmentConfigTest {
     @Test fun venus_setsVenusVars() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.VENUS, "wayland-0", "/tmp", testShimSet, "")
         assertThat(vars).containsEntry("GALLIUM_DRIVER", "zink")
+        assertThat(vars).containsEntry("MESA_GL_VERSION_OVERRIDE", "4.0")
         assertThat(vars).containsEntry("MESA_GLES_VERSION_OVERRIDE", "3.2")
         assertThat(vars["VK_DRIVER_FILES"]).contains("virtio_icd")
         assertThat(vars["VK_DRIVER_FILES"]).doesNotContain("aarch64")
@@ -60,7 +63,7 @@ class GpuEnvironmentConfigTest {
 
     @Test fun turnipDirect_setsTurnipVars() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.TURNIP_DIRECT, "wayland-0", "/tmp", testShimSet, "")
-        assertThat(vars).doesNotContainKey("GALLIUM_DRIVER")
+        assertThat(vars).containsEntry("GALLIUM_DRIVER", "zink")
         assertThat(vars).containsEntry("MESA_VK_WSI_PRESENT_MODE", "fifo")
         assertThat(vars["VK_DRIVER_FILES"]).contains("lvp_icd")
         assertThat(vars).doesNotContainKey("VTEST_SOCK")
@@ -99,13 +102,13 @@ class GpuEnvironmentConfigTest {
         assertThat(ldPreload.split(":")).hasSize(4)
     }
 
-    @Test fun guestLdPreload_softwareExcludesGbmAndEgl() {
+    @Test fun guestLdPreload_softwareExcludesGpuShims() {
         val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(GpuMode.SOFTWARE, "/opt/wldroid")
-        assertThat(ldPreload).contains("/opt/wldroid/drm-shim/libdrm-shim.so")
-        assertThat(ldPreload).contains("/opt/wldroid/netstub/libnetstub.so")
+        assertThat(ldPreload).doesNotContain("libdrm-shim.so")
         assertThat(ldPreload).doesNotContain("libgbm.so.1")
         assertThat(ldPreload).doesNotContain("libegl_override.so")
-        assertThat(ldPreload.split(":")).hasSize(2)
+        assertThat(ldPreload).contains("/opt/wldroid/netstub/libnetstub.so")
+        assertThat(ldPreload.split(":")).hasSize(1)
     }
 
     @Test fun guestLdPreload_usesCustomBasePath() {

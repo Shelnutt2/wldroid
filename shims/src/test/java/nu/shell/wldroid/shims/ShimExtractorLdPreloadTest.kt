@@ -42,12 +42,12 @@ class ShimExtractorLdPreloadTest {
     }
 
     @Test
-    fun `SOFTWARE mode excludes gbm and egl`() {
+    fun `SOFTWARE mode excludes drm gbm and egl`() {
         val ldPreload = createExtractorAndGetLdPreload("SOFTWARE")
-        assertThat(ldPreload).contains("libdrm-shim.so")
-        assertThat(ldPreload).contains("libnetstub.so")
+        assertThat(ldPreload).doesNotContain("libdrm-shim.so")
         assertThat(ldPreload).doesNotContain("libgbm.so.1")
         assertThat(ldPreload).doesNotContain("libegl_override.so")
+        assertThat(ldPreload).contains("libnetstub.so")
     }
 
     @Test
@@ -89,10 +89,10 @@ class ShimExtractorLdPreloadTest {
     }
 
     @Test
-    fun `SOFTWARE mode LD_PRELOAD has exactly 2 entries`() {
+    fun `SOFTWARE mode LD_PRELOAD has exactly 1 entry`() {
         val ldPreload = createExtractorAndGetLdPreload("SOFTWARE")
         val parts = ldPreload.split(":")
-        assertThat(parts).hasSize(2)
+        assertThat(parts).hasSize(1)
     }
 
     @Test
