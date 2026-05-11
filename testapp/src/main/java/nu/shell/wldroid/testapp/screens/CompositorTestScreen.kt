@@ -31,6 +31,7 @@ import nu.shell.wldroid.compositor.CompositorConfig
 import nu.shell.wldroid.compositor.CompositorState
 import nu.shell.wldroid.ui.CompositorSurface
 import nu.shell.wldroid.ui.InputMode
+import nu.shell.wldroid.ui.rememberCompositorSurfaceState
 
 @HiltViewModel
 class CompositorTestViewModel @Inject constructor(
@@ -53,6 +54,7 @@ fun CompositorTestScreen(
     val compositorState by viewModel.compositorState
     val clientCount by viewModel.clientCountState
     var inputMode by remember { mutableStateOf(InputMode.TOUCH_AND_KEYBOARD) }
+    val surfaceState = rememberCompositorSurfaceState(viewModel.compositorConfig)
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -124,10 +126,7 @@ fun CompositorTestScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = {
-                            // TODO: Wire to CompositorSession.startTestClient() once session
-                            //       is exposed from CompositorSurface (requires API addition).
-                        },
+                        onClick = { surfaceState.session.startTestClient() },
                         enabled = compositorState == CompositorState.RUNNING,
                     ) {
                         Text("Launch Test Pattern")
@@ -142,6 +141,7 @@ fun CompositorTestScreen(
                 .fillMaxWidth()
                 .weight(1f),
             config = viewModel.compositorConfig,
+            surfaceState = surfaceState,
             onStateChange = { viewModel.onStateChange(it) },
             onClientCountChange = { viewModel.onClientCountChange(it) },
             inputMode = inputMode,

@@ -54,12 +54,12 @@ import java.io.FileInputStream
 fun CompositorSurface(
     modifier: Modifier = Modifier,
     config: CompositorConfig = CompositorConfig.default(),
+    surfaceState: CompositorSurfaceState = rememberCompositorSurfaceState(config),
     onStateChange: (CompositorState) -> Unit = {},
     onClientCountChange: (Int) -> Unit = {},
     inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
 ) {
-    val surfaceState = rememberCompositorSurfaceState(config)
     val compositorState by surfaceState.compositorState.collectAsState()
     val clientCount by surfaceState.clientCount.collectAsState()
     val isKeyboardVisible by surfaceState.isKeyboardVisible.collectAsState()
