@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 OUT="${1:-$PROJECT_ROOT/shims/build/outputs/native/drm-shim/libdrm-wrapper.so}"
 
-SHIM_SO="$PROJECT_ROOT/shims/build/outputs/native/drm-shim/libdrm-shim.so"
+SHIM_SO="$(dirname "$OUT")/libdrm-shim.so"
 
 if [ ! -f "$SHIM_SO" ]; then
     echo "ERROR: libdrm-shim.so not found at $SHIM_SO" >&2

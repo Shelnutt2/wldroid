@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-OUT="${1:-$PROJECT_ROOT/shims/build/outputs/native/gbm-shim/libgbm.so.1}"
+OUT="${1:-$PROJECT_ROOT/shims/build/outputs/native/gbm-shim/libgbm.so}"
 
 SRCS="$SCRIPT_DIR/src/gbm_ahb.c $SCRIPT_DIR/src/gbm_ahb_formats.c"
 INCLUDES="-I$SCRIPT_DIR/include -I$SCRIPT_DIR/src -I$SCRIPT_DIR/vendor-include"
