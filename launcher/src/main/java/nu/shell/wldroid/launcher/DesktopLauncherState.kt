@@ -6,6 +6,7 @@ sealed class DesktopLauncherState {
     data object DetectingGpu : DesktopLauncherState()
     data object StartingVirgl : DesktopLauncherState()
     data object ExtractingShims : DesktopLauncherState()
+    data object SetupGpu : DesktopLauncherState()
     data object InstallingPackages : DesktopLauncherState()
     data object LaunchingApp : DesktopLauncherState()
     data object Running : DesktopLauncherState()
@@ -14,7 +15,7 @@ sealed class DesktopLauncherState {
 
     val isActive: Boolean
         get() = this is StartingCompositor || this is DetectingGpu || this is StartingVirgl ||
-                this is ExtractingShims || this is InstallingPackages || this is LaunchingApp ||
+                this is ExtractingShims || this is SetupGpu || this is InstallingPackages || this is LaunchingApp ||
                 this is Running || this is Stopping
 
     val isTerminal: Boolean

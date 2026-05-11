@@ -33,6 +33,7 @@ class DesktopLauncher(
     private val prootExecutor: ProotExecutor,
     private val config: DesktopLauncherConfig,
     private val packageInstaller: PackageInstaller = PackageInstaller(prootExecutor),
+    private val gpuSetupManager: GpuSetupManager = GpuSetupManager(prootExecutor, packageInstaller),
     private val dnsManager: ProotDnsManager? = null,
 ) {
     private val _state = MutableStateFlow<DesktopLauncherState>(DesktopLauncherState.Idle)
@@ -115,6 +116,23 @@ class DesktopLauncher(
                 val shimSet = shimExtractor.extractAll(config.shimExtractDir)
                 val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(_gpuMode.value, config.shimGuestBasePath)
                 _processOutput.tryEmit("✓ Shims extracted")
+
+                // 4.5. GPU setup (Mesa packages + DRI symlinks)
+                if (_gpuMode.value != GpuMode.SOFTWARE) {
+                    _state.value = DesktopLauncherState.SetupGpu
+                    _processOutput.tryEmit("Setting up GPU drivers...")
+                    val gpuReady = gpuSetupManager.setup(
+                        environment, _gpuMode.value,
+                        onOutput = { _processOutput.tryEmit("[gpu] $it") },
+                    )
+                    if (!gpuReady) {
+                        _gpuMode.value = GpuMode.SOFTWARE
+                        _processOutput.tryEmit("⚠ GPU setup failed, falling back to SOFTWARE mode")
+                        virglSession.stop()
+                    } else {
+                        _processOutput.tryEmit("✓ GPU drivers configured")
+                    }
+                }
 
                 // 5. Install packages if needed
                 if (requiredPackages.isNotEmpty()) {
