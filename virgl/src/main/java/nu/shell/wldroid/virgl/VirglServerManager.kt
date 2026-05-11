@@ -94,6 +94,14 @@ class VirglServerManager(
             pb.environment()["AHB_REGISTRY_SOCKET"] = ahbSocketPath
         }
 
+        // Set RENDER_SERVER_EXEC_PATH for Venus mode sub-process spawning
+        val renderServerPath = File(serverBinaryPath).parent?.let {
+            File(it, "libvirgl-render-server.so").absolutePath
+        }
+        if (renderServerPath != null) {
+            pb.environment()["RENDER_SERVER_EXEC_PATH"] = renderServerPath
+        }
+
         pb.redirectErrorStream(true)
 
         return@withLock try {
