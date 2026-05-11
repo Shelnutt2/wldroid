@@ -5,8 +5,9 @@
 # Meson resolves them via --subproject-dir pointing to external/.
 #
 # Usage:
-#   bash compositor/native/scripts/build.sh           # incremental build
-#   bash compositor/native/scripts/build.sh --clean   # wipe build dir
+#   bash compositor/native/scripts/build.sh                # incremental build
+#   bash compositor/native/scripts/build.sh --clean        # wipe build dir
+#   bash compositor/native/scripts/build.sh --setup-only   # configure only, skip build
 #
 # Gradle calls this via the buildCompositor task.
 set -euo pipefail
@@ -53,6 +54,12 @@ if [ "${1:-}" = "--clean" ]; then
     rm -rf "$NATIVE_DIR/builddir-native"
 fi
 
+SETUP_ONLY=false
+if [ "${1:-}" = "--setup-only" ]; then
+    SETUP_ONLY=true
+    echo "Setup-only mode: will configure but skip build"
+fi
+
 # ── Generate cross-file (NDK paths are machine-specific) ──
 CROSS_DIR="$NATIVE_DIR/builddir-cross"
 mkdir -p "$CROSS_DIR"
@@ -88,10 +95,22 @@ EOF
 # wayland-scanner is a code-generation tool that must run on the build machine
 # (x86_64), not the target (aarch64-android). Prefer the system-installed binary;
 # fall back to building from the wayland subproject source if not available.
+SCANNER_BIN=""
 if command -v wayland-scanner >/dev/null 2>&1; then
-    SCANNER_BIN="$(command -v wayland-scanner)"
-    echo "Host wayland-scanner: $SCANNER_BIN"
-else
+    _candidate="$(command -v wayland-scanner)"
+    # wlroots 0.19 needs wayland-scanner >= 1.24.0
+    _ver=$("$_candidate" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
+    _major=$(echo "$_ver" | cut -d. -f1)
+    _minor=$(echo "$_ver" | cut -d. -f2)
+    if [ "$_major" -gt 1 ] || { [ "$_major" -eq 1 ] && [ "$_minor" -ge 24 ]; }; then
+        SCANNER_BIN="$_candidate"
+        echo "Host wayland-scanner: $SCANNER_BIN (version $_ver)"
+    else
+        echo "System wayland-scanner $_ver too old (need >= 1.24.0), will build from source"
+    fi
+fi
+
+if [ -z "$SCANNER_BIN" ]; then
     NATIVE_BUILD_DIR="$NATIVE_DIR/builddir-native"
     SCANNER_BIN="$NATIVE_BUILD_DIR/src/wayland-scanner"
 
@@ -106,8 +125,7 @@ else
         fi
         meson setup "$NATIVE_BUILD_DIR" "$WAYLAND_SRC" \
             --default-library=static \
-            -Dtests=false -Ddocumentation=false -Ddtd_validation=false \
-            2>/dev/null || true
+            -Dtests=false -Ddocumentation=false -Ddtd_validation=false
         ninja -C "$NATIVE_BUILD_DIR" src/wayland-scanner
     fi
     echo "Built wayland-scanner: $SCANNER_BIN"
@@ -156,6 +174,12 @@ else
         --buildtype=release \
         --strip \
         --wrap-mode=forcefallback
+fi
+
+if [ "$SETUP_ONLY" = true ]; then
+    echo ""
+    echo "=== Setup-only mode: skipping build ==="
+    exit 0
 fi
 
 # ── Build ──
