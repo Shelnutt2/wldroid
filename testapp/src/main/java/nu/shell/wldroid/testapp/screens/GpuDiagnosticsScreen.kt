@@ -70,7 +70,7 @@ class GpuDiagnosticsViewModel @Inject constructor(
         _testResults.value = _testResults.value + (mode to "Testing...")
         viewModelScope.launch {
             try {
-                if (mode.requiresVirglServer) {
+                if (mode.requiresVirglServer && virglSession.state.value != VirglState.RUNNING) {
                     _testResults.value = _testResults.value +
                         (mode to "Requires VirGL server (start server first)")
                 } else {
