@@ -56,6 +56,7 @@ project('wldroid-compositor', 'c',
 
     # ── wayland: server library only, scanner is built natively ──
     'wayland:tests=false',
+    'wayland:scanner=false',
     'wayland:documentation=false',
     'wayland:dtd_validation=false',
 
