@@ -33,8 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,6 +65,7 @@ import nu.shell.wldroid.shims.ShimExtractor
 import nu.shell.wldroid.ui.CompositorSurface
 import nu.shell.wldroid.ui.CompositorSurfaceState
 import nu.shell.wldroid.ui.InputMode
+import nu.shell.wldroid.compositor.CompositorState
 import nu.shell.wldroid.virgl.GpuMode
 import nu.shell.wldroid.virgl.VirglSession
 
@@ -94,6 +97,18 @@ class DesktopViewModel @Inject constructor(
     val launcherState get() = launcher.state
     val processOutput get() = launcher.processOutput
     val gpuMode get() = launcher.gpuMode
+    val compositorState get() = compositorSession.state
+
+    init {
+        // Surface compositor errors into the launcher's process output stream.
+        viewModelScope.launch {
+            compositorSession.state.collect { state ->
+                if (state == CompositorState.ERROR) {
+                    launcher.emitOutput("✗ Compositor entered ERROR state")
+                }
+            }
+        }
+    }
 
     fun launch(env: RootfsEnvironment, preset: DesktopAppPreset) {
         viewModelScope.launch { launcher.launchPreset(env, preset, viewModelScope) }
@@ -123,7 +138,8 @@ fun DesktopScreen(
     val environments by viewModel.environments.collectAsState()
     val launcherState by viewModel.launcherState.collectAsState()
     val gpuMode by viewModel.gpuMode.collectAsState()
-    val logLines = remember { mutableListOf<String>() }
+    val compositorState by viewModel.compositorState.collectAsState()
+    val logLines = remember { mutableStateListOf<String>() }
     val logListState = rememberLazyListState()
 
     var selectedEnv by remember { mutableStateOf<RootfsEnvironment?>(null) }
@@ -148,11 +164,14 @@ fun DesktopScreen(
         }
     }
 
-    // Auto-scroll log to bottom.
-    LaunchedEffect(logLines.size) {
-        if (logLines.isNotEmpty()) {
-            logListState.animateScrollToItem(logLines.lastIndex)
-        }
+    // Auto-scroll log to bottom when new lines arrive.
+    LaunchedEffect(logListState) {
+        snapshotFlow { logLines.size }
+            .collect { size ->
+                if (size > 0) {
+                    logListState.animateScrollToItem(size - 1)
+                }
+            }
     }
 
     val surfaceState = remember(viewModel.compositorConfig, viewModel.compositorSession) {
@@ -215,12 +234,16 @@ fun DesktopScreen(
             // Status row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SuggestionChip(
                     onClick = {},
                     label = { Text(launcherState.displayName()) },
+                )
+                SuggestionChip(
+                    onClick = {},
+                    label = { Text("WC: ${compositorState.name}") },
                 )
                 SuggestionChip(
                     onClick = {},
