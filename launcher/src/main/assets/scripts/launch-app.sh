@@ -98,6 +98,8 @@ if [ -n "${VK_DRIVER_FILES:-}" ] && [ ! -f "${VK_DRIVER_FILES}" ]; then
     fi
 fi
 
+debug "VK_DRIVER_FILES=${VK_DRIVER_FILES:-<unset>}"
+
 # --- Browser/toolkit GPU workarounds ---
 # Firefox/Gecko: enable native Wayland backend and disable WebRender
 # (WebRender crashes with VirGL translation layers).
