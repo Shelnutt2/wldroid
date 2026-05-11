@@ -359,6 +359,7 @@ private fun DesktopLauncherState.displayName(): String = when (this) {
     is DesktopLauncherState.Idle -> "Idle"
     is DesktopLauncherState.StartingCompositor -> "Starting Compositor…"
     is DesktopLauncherState.DetectingGpu -> "Detecting GPU…"
+    is DesktopLauncherState.SetupGpu -> "Setting up GPU…"
     is DesktopLauncherState.StartingVirgl -> "Starting VirGL…"
     is DesktopLauncherState.ExtractingShims -> "Extracting Shims…"
     is DesktopLauncherState.InstallingPackages -> "Installing Packages…"
