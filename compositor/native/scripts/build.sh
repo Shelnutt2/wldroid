@@ -219,6 +219,13 @@ fi
 # ── Build ──
 echo ""
 echo "=== Building ==="
+
+# xcb-proto's xcbgen Python package lives inside the downloaded subproject.
+# libxcb's c_client.py code generator imports xcbgen, so Python must be able
+# to find the parent directory on sys.path.  The -p flag c_client.py receives
+# points at the xcbgen *package* dir; PYTHONPATH needs the *parent* dir.
+export PYTHONPATH="$NATIVE_DIR/subprojects/xcb-proto-1.17.0${PYTHONPATH:+:$PYTHONPATH}"
+
 ninja -C "$BUILD_DIR"
 
 # ── Copy .so to jniLibs ──
