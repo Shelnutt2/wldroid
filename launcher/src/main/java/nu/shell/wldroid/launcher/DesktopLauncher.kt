@@ -205,6 +205,7 @@ class DesktopLauncher(
                 val envVars = GpuEnvironmentConfig.buildProcessEnvVars(
                     _gpuMode.value,
                     socketName,
+                    config.waylandRuntimeDir,
                     config.gpuSetupConfig.gpuDebugEnabled,
                 ) + config.additionalEnvVars
 

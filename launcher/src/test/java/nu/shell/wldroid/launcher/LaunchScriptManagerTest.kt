@@ -39,7 +39,7 @@ class LaunchScriptManagerTest {
         val mounts = manager.buildLaunchBindMounts(
             scriptFile, testShimSet, "/host/runtime", testConfig,
         )
-        assertThat(mounts.any { it.guestPath == "/tmp/xdg-runtime" }).isTrue()
+        assertThat(mounts.any { it.guestPath == "/host/runtime" && it.hostPath == "/host/runtime" }).isTrue()
     }
 
     @Test fun `buildLaunchBindMounts includes netstub`() {

@@ -39,7 +39,7 @@ class LaunchScriptManager {
 
     /**
      * Builds bind mounts for the app launch phase:
-     * - Wayland runtime dir → /tmp/xdg-runtime
+     * - Wayland runtime dir → identity bind (same host and guest path, avoids /tmp shadow)
      * - Netstub dir → /opt/wldroid/netstub
      * - Launch script → /opt/wldroid/launch-app.sh
      */
@@ -51,8 +51,10 @@ class LaunchScriptManager {
     ): List<BindMount> {
         val mounts = mutableListOf<BindMount>()
 
-        // Wayland runtime dir → XDG_RUNTIME_DIR
-        mounts.add(BindMount(hostPath = waylandRuntimeDir, guestPath = "/tmp/xdg-runtime"))
+        // Wayland runtime dir → identity bind (same host and guest path).
+        // Using an identity bind avoids the /tmp shadow problem where proot's
+        // default /tmp bind mount would intercept a /tmp/xdg-runtime sub-bind.
+        mounts.add(BindMount(hostPath = waylandRuntimeDir, guestPath = waylandRuntimeDir))
 
         // Netstub dir (all modes — works around Android SELinux getifaddrs)
         val netstubDir = File(shimSet.netstub).parent ?: shimSet.netstub

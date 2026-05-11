@@ -19,17 +19,20 @@ object GpuEnvironmentConfig {
      *
      * @param gpuMode The resolved GPU mode (must not be [GpuMode.AUTO])
      * @param waylandSocketName Wayland socket filename (e.g., "wayland-0")
+     * @param waylandRuntimeDir Host path to the Wayland runtime directory (used as XDG_RUNTIME_DIR
+     *   with an identity bind mount so proot resolves it without /tmp shadow conflicts)
      * @param debugEnabled Whether to enable verbose Mesa/EGL debug logging
      * @return Map of environment variable name to value
      */
     fun buildProcessEnvVars(
         gpuMode: GpuMode,
         waylandSocketName: String,
+        waylandRuntimeDir: String,
         debugEnabled: Boolean = false,
     ): Map<String, String> {
         val vars = mutableMapOf(
             "WAYLAND_DISPLAY" to waylandSocketName,
-            "XDG_RUNTIME_DIR" to "/tmp/xdg-runtime",
+            "XDG_RUNTIME_DIR" to waylandRuntimeDir,
             "WLDROID_GPU_MODE" to gpuMode.name,
             "ELECTRON_OZONE_PLATFORM_HINT" to "wayland",
             "GDK_BACKEND" to "wayland",
