@@ -170,6 +170,41 @@ class ProotExecutorTest {
     }
 
     @Test
+    fun `buildProotCommand guest env vars are injected via env command not host environment`() {
+        val cmd = executor.buildProotCommand(
+            environment = testEnv(),
+            command = listOf("/bin/bash"),
+            guestEnvVars = mapOf(
+                "LD_PRELOAD" to "/opt/wldroid/drm-shim/libdrm-shim.so",
+                "WAYLAND_DISPLAY" to "wayland-0",
+            ),
+        )
+        // Guest env vars must NOT be in the host process environment
+        assertThat(cmd.environment).doesNotContainKey("LD_PRELOAD")
+        assertThat(cmd.environment).doesNotContainKey("WAYLAND_DISPLAY")
+
+        // Guest env vars must be passed via /usr/bin/env before the user command
+        val envIdx = cmd.args.indexOf("/usr/bin/env")
+        assertThat(envIdx).isAtLeast(0)
+        val bashIdx = cmd.args.indexOf("/bin/bash")
+        assertThat(bashIdx).isGreaterThan(envIdx)
+
+        // The env assignments should be between /usr/bin/env and the user command
+        val envAssignments = cmd.args.subList(envIdx + 1, bashIdx)
+        assertThat(envAssignments).contains("LD_PRELOAD=/opt/wldroid/drm-shim/libdrm-shim.so")
+        assertThat(envAssignments).contains("WAYLAND_DISPLAY=wayland-0")
+    }
+
+    @Test
+    fun `buildProotCommand without guest env vars does not inject env command`() {
+        val cmd = executor.buildProotCommand(
+            environment = testEnv(),
+            command = listOf("/bin/bash"),
+        )
+        assertThat(cmd.args).doesNotContain("/usr/bin/env")
+    }
+
+    @Test
     fun `buildProotCommand omits PROOT_LOADER when loaderPath is empty`() {
         val noLoaderExecutor = ProotExecutor(
             ProotConfig(
