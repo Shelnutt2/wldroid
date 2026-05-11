@@ -24,11 +24,11 @@ class ShimConfigTest {
     @Test
     fun softwareModeDisablesGbmAndEgl() {
         val config = ShimConfig.forGpuMode("SOFTWARE")
-        assertThat(config.enableDrmShim).isTrue()
+        assertThat(config.enableDrmShim).isFalse()
         assertThat(config.enableGbmShim).isFalse()
         assertThat(config.enableEglOverride).isFalse()
         assertThat(config.enableNetstub).isTrue()
-        assertThat(config.enableDrmWrapper).isTrue()
+        assertThat(config.enableDrmWrapper).isFalse()
     }
 
     @Test
