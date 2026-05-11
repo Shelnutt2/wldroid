@@ -7,7 +7,7 @@ class InputModeTest {
 
     @Test
     fun `enum has exactly four values`() {
-        assertThat(InputMode.entries).hasSize(4)
+        assertThat(InputMode.entries).hasSize(5)
     }
 
     @Test
@@ -48,5 +48,14 @@ class InputModeTest {
         assertThat(InputMode.valueOf("KEYBOARD_ONLY")).isEqualTo(InputMode.KEYBOARD_ONLY)
         assertThat(InputMode.valueOf("TOUCH_AND_KEYBOARD")).isEqualTo(InputMode.TOUCH_AND_KEYBOARD)
         assertThat(InputMode.valueOf("POINTER_AND_KEYBOARD")).isEqualTo(InputMode.POINTER_AND_KEYBOARD)
+        assertThat(InputMode.valueOf("ALL")).isEqualTo(InputMode.ALL)
+    }
+
+    @Test
+    fun `ALL has touch keyboard and pointer input`() {
+        val mode = InputMode.ALL
+        assertThat(mode.hasTouchInput).isTrue()
+        assertThat(mode.hasKeyboardInput).isTrue()
+        assertThat(mode.hasPointerInput).isTrue()
     }
 }

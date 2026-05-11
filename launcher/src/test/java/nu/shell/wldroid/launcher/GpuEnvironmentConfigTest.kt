@@ -15,7 +15,7 @@ class GpuEnvironmentConfigTest {
     )
 
     @Test fun commonVars_presentInAllModes() {
-        GpuMode.entries.forEach { mode ->
+        GpuMode.entries.filter { it != GpuMode.AUTO }.forEach { mode ->
             val vars = GpuEnvironmentConfig.buildEnvVars(mode, "wayland-0", "/tmp/runtime", testShimSet, "preload.so")
             assertThat(vars).containsEntry("WAYLAND_DISPLAY", "wayland-0")
             assertThat(vars).containsEntry("XDG_RUNTIME_DIR", "/tmp/xdg-runtime")

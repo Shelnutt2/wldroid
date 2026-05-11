@@ -53,9 +53,6 @@ class VirglSession(
      * skip server startup.
      */
     suspend fun start() {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        sessionScope = scope
-
         // Resolve the effective GPU mode.
         val effectiveMode = resolveGpuMode()
         _detectedGpuMode.value = effectiveMode
@@ -64,6 +61,9 @@ class VirglSession(
             _state.value = VirglState.RUNNING
             return
         }
+
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        sessionScope = scope
 
         _state.value = VirglState.STARTING
         val started = serverManager.start(effectiveMode, scope)
