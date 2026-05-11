@@ -66,9 +66,11 @@ class ShimExtractorTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val extractor = ShimExtractor(context)
 
-        // Create fake shim files to simulate extraction
-        for ((_, filename) in ShimExtractor.SHIM_ASSETS) {
-            File(testDir, filename).writeText("fake")
+        // Create fake shim files in subdirectory layout to simulate extraction
+        for ((assetPath, filename) in ShimExtractor.SHIM_ASSETS) {
+            val subDir = File(assetPath).parent ?: ""
+            val outDir = File(testDir, subDir).also { it.mkdirs() }
+            File(outDir, filename).writeText("fake")
         }
 
         assertThat(extractor.isExtracted(testDir.absolutePath)).isTrue()
@@ -100,10 +102,10 @@ class ShimExtractorTest {
         )
 
         val ldPreload = extractor.getLdPreloadString(shimSet, "SOFTWARE")
-        // SOFTWARE mode disables gbm and egl
-        assertThat(ldPreload).contains("libdrm-shim.so")
+        // SOFTWARE mode disables drm, gbm, and egl — only netstub remains
+        assertThat(ldPreload).doesNotContain("libdrm-shim.so")
         assertThat(ldPreload).contains("libnetstub.so")
-        assertThat(ldPreload).doesNotContain("libgbm.so.1")
+        assertThat(ldPreload).doesNotContain("libgbm.so")
         assertThat(ldPreload).doesNotContain("libegl_override.so")
     }
 
