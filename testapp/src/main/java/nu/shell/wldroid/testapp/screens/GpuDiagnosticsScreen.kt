@@ -37,7 +37,6 @@ import kotlinx.coroutines.launch
 import nu.shell.wldroid.virgl.GpuCapabilityDetector
 import nu.shell.wldroid.virgl.GpuMode
 import nu.shell.wldroid.virgl.GpuModeStore
-import nu.shell.wldroid.virgl.VirglConfig
 import nu.shell.wldroid.virgl.VirglSession
 import nu.shell.wldroid.virgl.VirglState
 import nu.shell.wldroid.ui.GpuModeSelector
@@ -46,9 +45,8 @@ import nu.shell.wldroid.ui.GpuModeSelector
 class GpuDiagnosticsViewModel @Inject constructor(
     val gpuDetector: GpuCapabilityDetector,
     private val gpuModeStore: GpuModeStore,
-    private val virglConfig: VirglConfig,
+    val virglSession: VirglSession,
 ) : ViewModel() {
-    val virglSession = VirglSession(virglConfig, gpuDetector = gpuDetector)
     val virglState get() = virglSession.state
     val detectedMode get() = virglSession.detectedGpuMode
     val gpuModeOverride = gpuModeStore.getGpuModeOverride()
