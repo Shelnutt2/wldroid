@@ -36,6 +36,20 @@ val buildNative by tasks.registering(Exec::class) {
     workingDir = project.projectDir
     commandLine("bash", "${project.projectDir}/native/build-virgl.sh")
 
+    // Inputs: external virglrenderer sources, build script
+    inputs.files(fileTree("${rootProject.projectDir}/external/virglrenderer") {
+        include("**/*.c", "**/*.h", "**/meson.build")
+        exclude("**/test/**", "**/tests/**", "**/docs/**")
+    })
+    inputs.file("native/build-virgl.sh")
+    inputs.property("ndkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(
+        providers.environmentVariable("ANDROID_NDK")
+    ).orElse(""))
+
+    // Outputs: two .so files
+    outputs.file("src/main/jniLibs/arm64-v8a/libvirgl-test-server.so")
+    outputs.file("src/main/jniLibs/arm64-v8a/libvirgl-render-server.so")
+
     onlyIf { !project.hasProperty("skipVirgl") || project.property("skipVirgl") != "true" }
 }
 
