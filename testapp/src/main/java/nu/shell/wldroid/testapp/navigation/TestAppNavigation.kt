@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import nu.shell.wldroid.testapp.screens.CompositorTestScreen
+import nu.shell.wldroid.testapp.screens.DesktopScreen
 import nu.shell.wldroid.testapp.screens.EnvironmentScreen
 import nu.shell.wldroid.testapp.screens.GpuDiagnosticsScreen
 import nu.shell.wldroid.testapp.screens.NativeTestScreen
@@ -15,6 +16,7 @@ import nu.shell.wldroid.testapp.screens.ShimTestScreen
 /** Navigation route definitions for the test app. */
 sealed class TestAppRoute(val route: String, val title: String, val icon: String) {
     data object Compositor : TestAppRoute("compositor", "Compositor", "🖥")
+    data object Desktop : TestAppRoute("desktop", "Desktop", "🖥️")
     data object Environment : TestAppRoute("environment", "Environments", "📦")
     data object GpuDiagnostics : TestAppRoute("gpu_diagnostics", "GPU", "🎮")
     data object ShimTest : TestAppRoute("shim_test", "Shims", "🔧")
@@ -23,7 +25,7 @@ sealed class TestAppRoute(val route: String, val title: String, val icon: String
 
     companion object {
         val all: List<TestAppRoute> = listOf(
-            Compositor, Environment, GpuDiagnostics, ShimTest, NativeTest, Settings,
+            Compositor, Desktop, Environment, GpuDiagnostics, ShimTest, NativeTest, Settings,
         )
     }
 }
@@ -39,6 +41,7 @@ fun TestAppNavHost(
         modifier = modifier,
     ) {
         composable(TestAppRoute.Compositor.route) { CompositorTestScreen() }
+        composable(TestAppRoute.Desktop.route) { DesktopScreen() }
         composable(TestAppRoute.Environment.route) { EnvironmentScreen() }
         composable(TestAppRoute.GpuDiagnostics.route) { GpuDiagnosticsScreen() }
         composable(TestAppRoute.ShimTest.route) { ShimTestScreen() }
