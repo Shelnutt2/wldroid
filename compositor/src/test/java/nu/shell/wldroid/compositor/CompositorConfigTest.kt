@@ -13,6 +13,7 @@ class CompositorConfigTest {
         assertEquals("", config.cacheDir)
         assertEquals("", config.xkbBasePath)
         assertTrue(config.xwaylandEnabled)
+        assertEquals("", config.xwaylandBinaryPath)
         assertEquals("AUTO", config.gpuMode)
         assertFalse(config.testClientEnabled)
         assertEquals("", config.ahbRegistrySocketPath)
@@ -48,5 +49,22 @@ class CompositorConfigTest {
         val b = CompositorConfig(cacheDir = "/test")
         assertEquals(a, b)
         assertEquals(a.hashCode(), b.hashCode())
+    }
+
+    @Test
+    fun `xwaylandBinaryPath can be set`() {
+        val config = CompositorConfig(xwaylandBinaryPath = "/cache/xwayland-wrapper.sh")
+        assertEquals("/cache/xwayland-wrapper.sh", config.xwaylandBinaryPath)
+        assertTrue(config.xwaylandEnabled)
+    }
+
+    @Test
+    fun `xwayland disabled with custom binary path`() {
+        val config = CompositorConfig(
+            xwaylandEnabled = false,
+            xwaylandBinaryPath = "/cache/xwayland-wrapper.sh",
+        )
+        assertFalse(config.xwaylandEnabled)
+        assertEquals("/cache/xwayland-wrapper.sh", config.xwaylandBinaryPath)
     }
 }

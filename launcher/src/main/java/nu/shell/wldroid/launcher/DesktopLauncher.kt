@@ -49,6 +49,7 @@ class DesktopLauncher(
     private val packageInstaller: PackageInstaller = PackageInstaller(prootExecutor),
     private val gpuSetupManager: GpuSetupManager = GpuSetupManager(prootExecutor),
     private val launchScriptManager: LaunchScriptManager = LaunchScriptManager(),
+    private val xwaylandManager: XWaylandManager? = null,
     private val dnsManager: ProotDnsManager? = null,
 ) {
     private val _state = MutableStateFlow<DesktopLauncherState>(DesktopLauncherState.Idle)
@@ -167,18 +168,32 @@ class DesktopLauncher(
                     }
                 }
 
-                // 5. Install app-specific packages if needed
-                if (requiredPackages.isNotEmpty()) {
+                // 5. Install app-specific packages if needed (+ xwayland if enabled)
+                val allPackages = buildList {
+                    addAll(requiredPackages)
+                    if (config.xwaylandConfig.enabled) {
+                        add("xwayland")
+                        addAll(config.xwaylandConfig.additionalPackages)
+                    }
+                }
+                if (allPackages.isNotEmpty()) {
                     _state.value = DesktopLauncherState.InstallingPackages
-                    emitOutput("Installing packages: ${requiredPackages.joinToString(", ")}")
+                    emitOutput("Installing packages: ${allPackages.joinToString(", ")}")
                     val exitCode = packageInstaller.installPackages(
                         environment,
-                        requiredPackages,
+                        allPackages,
                         onOutput = { emitOutput("[install] $it") },
                     )
                     if (exitCode != 0) {
                         emitOutput("⚠ Package install exited with code $exitCode, continuing anyway...")
                     }
+                }
+
+                // 5b. Set up XWayland wrapper script and /tmp/.X11-unix
+                if (config.xwaylandConfig.enabled && xwaylandManager != null) {
+                    val wrapperPath = xwaylandManager.extractWrapperScript(environment)
+                    xwaylandManager.ensureTmpDirReady(config.tempDir)
+                    emitOutput("✓ XWayland wrapper ready: $wrapperPath")
                 }
 
                 // 7. Write DNS config before launching in proot
@@ -202,11 +217,17 @@ class DesktopLauncher(
 
                 // Build process env vars (safe vars — no LD_PRELOAD)
                 val socketName = File(socketPath).name
+                val xwaylandDisplay = if (config.xwaylandConfig.enabled) {
+                    config.xwaylandConfig.displayName
+                } else {
+                    ""
+                }
                 val envVars = GpuEnvironmentConfig.buildProcessEnvVars(
                     _gpuMode.value,
                     socketName,
                     config.waylandRuntimeDir,
                     config.gpuSetupConfig.gpuDebugEnabled,
+                    xwaylandDisplayName = xwaylandDisplay,
                 ) + config.additionalEnvVars
 
                 val pb = prootExecutor.buildCommand(

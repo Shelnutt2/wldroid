@@ -125,6 +125,14 @@ if [ "${WLDROID_DEBUG:-0}" = "1" ]; then
     log "Debug logging enabled"
 fi
 
+# --- X11/XWayland compatibility ---
+# Disable xauth requirement for X11 apps running through XWayland.
+# XWayland and clients share the same socket namespace so no auth is needed.
+if [ -n "${DISPLAY:-}" ]; then
+    export XAUTHORITY=/dev/null
+    debug "DISPLAY=${DISPLAY}, XAUTHORITY set to /dev/null"
+fi
+
 # --- Wait for Wayland socket ---
 if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
     SOCKET_PATH="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
