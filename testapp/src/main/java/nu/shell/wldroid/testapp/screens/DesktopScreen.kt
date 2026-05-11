@@ -1,6 +1,7 @@
 package nu.shell.wldroid.testapp.screens
 
 import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -23,6 +27,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -149,6 +156,8 @@ fun DesktopScreen(
     var isCustom by rememberSaveable { mutableStateOf(false) }
     var customCommand by rememberSaveable { mutableStateOf("") }
     var envDropdownExpanded by remember { mutableStateOf(false) }
+    var showKeyboard by remember { mutableStateOf(false) }
+    val view = LocalView.current
 
     // Auto-select first environment when available.
     LaunchedEffect(environments) {
@@ -294,33 +303,62 @@ fun DesktopScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Launch / Stop button
-            if (launcherState.isActive) {
-                Button(
-                    onClick = { viewModel.stop() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Stop")
+            // Launch / Stop button + Keyboard toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (launcherState.isActive) {
+                    Button(
+                        onClick = { viewModel.stop() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Stop")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            val env = selectedEnv ?: return@Button
+                            if (isCustom && customCommand.isNotBlank()) {
+                                viewModel.launchCustom(env, customCommand)
+                            } else {
+                                val preset = selectedPreset ?: return@Button
+                                viewModel.launch(env, preset)
+                            }
+                        },
+                        enabled = selectedEnv != null &&
+                            ((!isCustom && selectedPreset != null) || (isCustom && customCommand.isNotBlank())),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Launch")
+                    }
                 }
-            } else {
-                Button(
+
+                // Keyboard toggle button
+                IconButton(
                     onClick = {
-                        val env = selectedEnv ?: return@Button
-                        if (isCustom && customCommand.isNotBlank()) {
-                            viewModel.launchCustom(env, customCommand)
+                        showKeyboard = !showKeyboard
+                        val imm = view.context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                            as InputMethodManager
+                        if (showKeyboard) {
+                            // Find the compositor's SurfaceView (the focused view in the hierarchy)
+                            val focusedView = view.rootView.findFocus() ?: view
+                            focusedView.requestFocus()
+                            imm.showSoftInput(focusedView, InputMethodManager.SHOW_IMPLICIT)
                         } else {
-                            val preset = selectedPreset ?: return@Button
-                            viewModel.launch(env, preset)
+                            imm.hideSoftInputFromWindow(view.windowToken, 0)
                         }
                     },
-                    enabled = selectedEnv != null &&
-                        ((!isCustom && selectedPreset != null) || (isCustom && customCommand.isNotBlank())),
-                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Launch")
+                    Icon(
+                        imageVector = if (showKeyboard) Icons.Default.KeyboardHide
+                            else Icons.Default.Keyboard,
+                        contentDescription = if (showKeyboard) "Hide keyboard" else "Show keyboard",
+                    )
                 }
             }
 

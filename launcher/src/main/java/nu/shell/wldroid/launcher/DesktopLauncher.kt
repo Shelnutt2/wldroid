@@ -227,11 +227,10 @@ class DesktopLauncher(
                                 }
                             }
                         } catch (e: IOException) {
-                            if (_state.value == DesktopLauncherState.Stopping) {
-                                Log.d(TAG, "Process output stream closed during stop: ${e.message}")
-                            } else {
+                            if (_state.value != DesktopLauncherState.Stopping) {
                                 throw e
                             }
+                            // Expected during stop — silently break out of read loop.
                         }
                         process.waitFor()
                     }
