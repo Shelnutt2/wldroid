@@ -140,7 +140,12 @@ private fun CompositorAndroidView(
                         }
 
                         override fun surfaceDestroyed(holder: SurfaceHolder) {
-                            surfaceState.session.stop()
+                            // Use stopAsync() to avoid blocking the UI thread
+                            // inside the surfaceDestroyed callback.  On Mali GPUs,
+                            // calling nativeStopCompositor() synchronously here
+                            // causes a SIGSEGV because eglDestroyContext() runs
+                            // while the native window is still being torn down.
+                            surfaceState.session.stopAsync()
                         }
                     },
                 )
