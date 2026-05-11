@@ -22,6 +22,13 @@ android {
         jvmTarget = "17"
     }
 
+
+    // VirGL server binary is exec'd as a separate process, not loaded via JNI.
+    // It must be extracted to disk (useLegacyPackaging) to be launchable.
+    packaging {
+        jniLibs.useLegacyPackaging = true
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
