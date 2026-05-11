@@ -6,19 +6,19 @@ import org.junit.Test
 class ShimExtractorTest {
 
     @Test
-    fun `ShimSet contains correct default filenames`() {
+    fun `ShimSet contains correct subdirectory filenames`() {
         val shimSet = ShimExtractor.ShimSet(
-            drmShim = "/tmp/shims/libdrm-shim.so",
-            drmWrapper = "/tmp/shims/libdrm-wrapper.so",
-            gbmShim = "/tmp/shims/libgbm.so.1",
-            eglOverride = "/tmp/shims/libegl_override.so",
-            netstub = "/tmp/shims/libnetstub.so",
+            drmShim = "/tmp/shims/drm-shim/libdrm-shim.so",
+            drmWrapper = "/tmp/shims/drm-shim/libdrm-wrapper.so",
+            gbmShim = "/tmp/shims/gbm-shim/libgbm.so.1",
+            eglOverride = "/tmp/shims/egl-override/libegl_override.so",
+            netstub = "/tmp/shims/netstub/libnetstub.so",
         )
-        assertThat(shimSet.drmShim).endsWith("libdrm-shim.so")
-        assertThat(shimSet.drmWrapper).endsWith("libdrm-wrapper.so")
-        assertThat(shimSet.gbmShim).endsWith("libgbm.so.1")
-        assertThat(shimSet.eglOverride).endsWith("libegl_override.so")
-        assertThat(shimSet.netstub).endsWith("libnetstub.so")
+        assertThat(shimSet.drmShim).endsWith("drm-shim/libdrm-shim.so")
+        assertThat(shimSet.drmWrapper).endsWith("drm-shim/libdrm-wrapper.so")
+        assertThat(shimSet.gbmShim).endsWith("gbm-shim/libgbm.so.1")
+        assertThat(shimSet.eglOverride).endsWith("egl-override/libegl_override.so")
+        assertThat(shimSet.netstub).endsWith("netstub/libnetstub.so")
     }
 
     @Test
