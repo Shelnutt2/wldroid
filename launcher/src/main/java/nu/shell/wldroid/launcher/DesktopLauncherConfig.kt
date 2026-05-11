@@ -11,6 +11,8 @@ data class DesktopLauncherConfig(
     val ahbRegistrySocketPath: String = "",
     val netstubGuestPath: String = "/opt/wldroid/netstub",
     val shimGuestBasePath: String = "/opt/wldroid",
+    /** Configuration for the GPU setup phase (Phase 1). */
+    val gpuSetupConfig: GpuSetupConfig = GpuSetupConfig(),
     val additionalEnvVars: Map<String, String> = emptyMap(),
     val additionalBindMounts: List<BindMount> = emptyList(),
 ) {

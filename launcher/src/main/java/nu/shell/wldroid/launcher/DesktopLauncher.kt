@@ -1,7 +1,9 @@
 package nu.shell.wldroid.launcher
 
+import android.content.Context
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import nu.shell.wldroid.compositor.CompositorSession
 import nu.shell.wldroid.proot.ProotDnsManager
@@ -26,14 +29,24 @@ import nu.shell.wldroid.virgl.VirglSession
 import nu.shell.wldroid.virgl.VirglState
 import java.io.File
 
+/**
+ * Orchestrates the two-phase desktop app launch pipeline:
+ *
+ * - **Phase 1 (GPU Setup):** Runs `setup-gpu.sh` inside proot to install Mesa packages,
+ *   copy shim libraries to system paths, and create DRI symlinks.
+ * - **Phase 2 (App Launch):** Runs `launch-app.sh` inside proot which sets LD_PRELOAD,
+ *   LD_LIBRARY_PATH, waits for the Wayland socket, and exec's the user's command.
+ */
 class DesktopLauncher(
+    private val context: Context,
     private val compositorSession: CompositorSession,
     private val virglSession: VirglSession,
     private val shimExtractor: ShimExtractor,
     private val prootExecutor: ProotExecutor,
     private val config: DesktopLauncherConfig,
     private val packageInstaller: PackageInstaller = PackageInstaller(prootExecutor),
-    private val gpuSetupManager: GpuSetupManager = GpuSetupManager(prootExecutor, packageInstaller),
+    private val gpuSetupManager: GpuSetupManager = GpuSetupManager(prootExecutor),
+    private val launchScriptManager: LaunchScriptManager = LaunchScriptManager(),
     private val dnsManager: ProotDnsManager? = null,
 ) {
     private val _state = MutableStateFlow<DesktopLauncherState>(DesktopLauncherState.Idle)
@@ -114,27 +127,32 @@ class DesktopLauncher(
                 _state.value = DesktopLauncherState.ExtractingShims
                 _processOutput.tryEmit("Extracting shims...")
                 val shimSet = shimExtractor.extractAll(config.shimExtractDir)
-                val ldPreload = GpuEnvironmentConfig.buildGuestLdPreload(_gpuMode.value, config.shimGuestBasePath)
                 _processOutput.tryEmit("✓ Shims extracted")
 
-                // 4.5. GPU setup (Mesa packages + DRI symlinks)
+                // ===== Phase 1: GPU Setup (separate proot invocation) =====
                 if (_gpuMode.value != GpuMode.SOFTWARE) {
                     _state.value = DesktopLauncherState.SetupGpu
                     _processOutput.tryEmit("Setting up GPU drivers...")
-                    val gpuReady = gpuSetupManager.setup(
-                        environment, _gpuMode.value,
+                    val setupResult = gpuSetupManager.setup(
+                        context = context,
+                        environment = environment,
+                        gpuMode = _gpuMode.value,
+                        shimSet = shimSet,
+                        config = config.gpuSetupConfig,
                         onOutput = { _processOutput.tryEmit("[gpu] $it") },
                     )
-                    if (!gpuReady) {
+                    if (!setupResult.success) {
                         _gpuMode.value = GpuMode.SOFTWARE
-                        _processOutput.tryEmit("⚠ GPU setup failed, falling back to SOFTWARE mode")
+                        _processOutput.tryEmit(
+                            "⚠ GPU setup failed (${setupResult.errorMessage}), falling back to SOFTWARE mode",
+                        )
                         virglSession.stop()
                     } else {
                         _processOutput.tryEmit("✓ GPU drivers configured")
                     }
                 }
 
-                // 5. Install packages if needed
+                // 5. Install app-specific packages if needed
                 if (requiredPackages.isNotEmpty()) {
                     _state.value = DesktopLauncherState.InstallingPackages
                     _processOutput.tryEmit("Installing packages: ${requiredPackages.joinToString(", ")}")
@@ -148,31 +166,45 @@ class DesktopLauncher(
                     }
                 }
 
-                // 6. Build env vars + bind mounts
-                val socketName = File(socketPath).name
-                val envVars = GpuEnvironmentConfig.buildEnvVars(
-                    _gpuMode.value, socketName, config.waylandRuntimeDir, shimSet, ldPreload,
-                ) + config.additionalEnvVars
-
-                val bindMounts = GpuEnvironmentConfig.buildBindMounts(
-                    _gpuMode.value, config, config.waylandRuntimeDir, shimSet,
-                ) + config.additionalBindMounts
-
                 // 7. Write DNS config before launching in proot
                 dnsManager?.writeResolvConf(File(environment.rootfsPath))
 
-                // 8. Launch in proot
+                // ===== Phase 2: App Launch (separate proot invocation) =====
                 _state.value = DesktopLauncherState.LaunchingApp
                 _processOutput.tryEmit("Launching: ${command.joinToString(" ")}")
-                _state.value = DesktopLauncherState.Running
+
+                // Extract launch-app.sh from assets
+                val cacheDir = File(config.tempDir)
+                val launchScript = launchScriptManager.extractLaunchScript(context, cacheDir)
+
+                // Build bind mounts for launch phase
+                val bindMounts = launchScriptManager.buildLaunchBindMounts(
+                    launchScript, shimSet, config.waylandRuntimeDir, config,
+                ) + config.additionalBindMounts
+
+                // Build launch command: bash launch-app.sh <user command>
+                val launchCommand = launchScriptManager.buildLaunchCommand(command, config)
+
+                // Build process env vars (safe vars — no LD_PRELOAD)
+                val socketName = File(socketPath).name
+                val envVars = GpuEnvironmentConfig.buildProcessEnvVars(
+                    _gpuMode.value,
+                    socketName,
+                    config.gpuSetupConfig.gpuDebugEnabled,
+                ) + config.additionalEnvVars
 
                 val pb = prootExecutor.buildCommand(
-                    environment, command, bindMounts = bindMounts, guestEnvVars = envVars,
+                    environment, launchCommand, bindMounts = bindMounts,
                 )
+                // Set env vars on ProcessBuilder — proot passes them through to the guest
+                pb.environment().putAll(envVars)
+
+                _state.value = DesktopLauncherState.Running
+
                 val process = pb.start()
                 activeProcess = process
                 try {
-                    val exitCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val exitCode = withContext(Dispatchers.IO) {
                         process.inputStream.bufferedReader().useLines { lines ->
                             for (line in lines) {
                                 _processOutput.tryEmit(line)
@@ -218,7 +250,7 @@ class DesktopLauncher(
         activeProcess?.let { process ->
             process.destroy() // SIGTERM
             val exited = withTimeoutOrNull(3_000) {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     process.waitFor()
                 }
             }

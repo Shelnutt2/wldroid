@@ -89,6 +89,7 @@ class DesktopViewModel @Inject constructor(
     )
 
     val launcher = DesktopLauncher(
+        context = context,
         compositorSession = compositorSession,
         virglSession = virglSession,
         shimExtractor = shimExtractor,
