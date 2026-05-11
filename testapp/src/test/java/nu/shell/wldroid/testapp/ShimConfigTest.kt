@@ -9,8 +9,11 @@ class ShimConfigTest {
     @Test
     fun `software mode configures appropriate shims`() {
         val config = ShimConfig.forGpuMode("SOFTWARE")
-        // Software mode should have DRM and netstub at minimum
-        assertThat(config.enableDrmShim).isTrue()
+        // Software mode disables GPU shims, keeps only netstub
+        assertThat(config.enableDrmShim).isFalse()
+        assertThat(config.enableDrmWrapper).isFalse()
+        assertThat(config.enableGbmShim).isFalse()
+        assertThat(config.enableEglOverride).isFalse()
         assertThat(config.enableNetstub).isTrue()
     }
 

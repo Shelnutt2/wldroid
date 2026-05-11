@@ -97,11 +97,12 @@ class ShimExtractorTest {
     }
 
     @Test
-    fun `getLdPreloadString for SOFTWARE skips gbm and egl`() {
+    fun `getLdPreloadString for SOFTWARE skips drm gbm and egl`() {
         val config = ShimConfig.forGpuMode("SOFTWARE")
+        assertThat(config.enableDrmShim).isFalse()
+        assertThat(config.enableDrmWrapper).isFalse()
         assertThat(config.enableGbmShim).isFalse()
         assertThat(config.enableEglOverride).isFalse()
-        assertThat(config.enableDrmShim).isTrue()
         assertThat(config.enableNetstub).isTrue()
     }
 }
