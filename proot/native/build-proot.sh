@@ -19,7 +19,11 @@ PROJECT_ROOT="$(cd "$PROOT_MODULE_DIR/.." && pwd)"
 JNILIBS_DIR="$PROOT_MODULE_DIR/src/main/jniLibs/arm64-v8a"
 BUILD_DIR="$PROOT_MODULE_DIR/build/native"
 
-# Source directories (git submodules in external/)
+# ── Version pins ──
+TALLOC_VERSION="${TALLOC_VERSION:-2.4.3}"
+TALLOC_URL="https://www.samba.org/ftp/talloc/talloc-${TALLOC_VERSION}.tar.gz"
+
+# Source directories
 PROOT_SRC="${PROJECT_ROOT}/external/proot"
 TALLOC_SRC="${PROJECT_ROOT}/external/talloc"
 
@@ -57,10 +61,11 @@ export CFLAGS="-fPIC --sysroot=$SYSROOT"
 export LDFLAGS="--sysroot=$SYSROOT"
 
 echo "=== Proot build ==="
-echo "NDK:         $NDK"
-echo "Proot src:   $PROOT_SRC"
-echo "Talloc src:  $TALLOC_SRC"
-echo "Build dir:   $BUILD_DIR"
+echo "NDK:            $NDK"
+echo "Proot src:      $PROOT_SRC"
+echo "Talloc src:     $TALLOC_SRC"
+echo "Talloc version: $TALLOC_VERSION"
+echo "Build dir:      $BUILD_DIR"
 
 # ── Handle --clean ──
 if [ "${1:-}" = "--clean" ]; then
@@ -79,10 +84,21 @@ if [ ! -d "$PROOT_SRC/src" ]; then
     exit 1
 fi
 
+# ── Download talloc if not present ──
+# talloc is not a git submodule (no good GitHub mirror exists); instead we
+# download the release tarball from samba.org on first build.  The extracted
+# directory is cached at external/talloc so subsequent builds are instant.
 if [ ! -d "$TALLOC_SRC" ]; then
-    echo "ERROR: talloc source not found at $TALLOC_SRC" >&2
-    echo "  Did you run: git submodule update --init external/talloc?" >&2
-    exit 1
+    echo ""
+    echo "=== Downloading talloc ${TALLOC_VERSION} ==="
+    TALLOC_TAR="${PROJECT_ROOT}/external/talloc-${TALLOC_VERSION}.tar.gz"
+    mkdir -p "${PROJECT_ROOT}/external"
+    curl -fSL "$TALLOC_URL" -o "$TALLOC_TAR"
+    # The tarball extracts to talloc-<version>; rename to external/talloc.
+    tar -xzf "$TALLOC_TAR" -C "${PROJECT_ROOT}/external"
+    mv "${PROJECT_ROOT}/external/talloc-${TALLOC_VERSION}" "$TALLOC_SRC"
+    rm -f "$TALLOC_TAR"
+    echo "  talloc ${TALLOC_VERSION} downloaded to $TALLOC_SRC"
 fi
 
 mkdir -p "$BUILD_DIR"
