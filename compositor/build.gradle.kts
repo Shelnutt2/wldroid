@@ -41,6 +41,22 @@ val buildNative by tasks.registering(Exec::class) {
         providers.environmentVariable("ANDROID_NDK")
     ).orElse("").get())
 
+    // Inputs: native C sources, meson build files, build script, external wlroots
+    inputs.files(fileTree("native/src") { include("**/*.c", "**/*.h", "**/meson.build") })
+    inputs.file("native/meson.build")
+    inputs.file("native/scripts/build.sh")
+    inputs.files(fileTree("native/subprojects") { include("**/*.wrap", "packagefiles/**") })
+    inputs.files(fileTree("${rootProject.projectDir}/external/wlroots") {
+        include("**/*.c", "**/*.h", "**/meson.build")
+        exclude("**/test/**", "**/tests/**", "**/docs/**", "**/examples/**")
+    })
+    inputs.property("ndkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(
+        providers.environmentVariable("ANDROID_NDK")
+    ).orElse(""))
+
+    // Output: single .so
+    outputs.file("src/main/jniLibs/arm64-v8a/libwldroid-compositor.so")
+
     onlyIf { !project.hasProperty("skipCompositor") || project.property("skipCompositor") != "true" }
 }
 
