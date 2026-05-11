@@ -19,6 +19,8 @@ class ProotExecutorTest {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
         val rootfsDir = File(context.filesDir, "executor_test_rootfs")
         rootfsDir.mkdirs()
+        File(rootfsDir, "etc").mkdirs()
+        File(rootfsDir, "etc/os-release").writeText("ID=test\n")
 
         val config = ProotConfig(
             prootBinaryPath = "$nativeLibDir/libproot.so",
@@ -60,6 +62,8 @@ class ProotExecutorTest {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
         val rootfsDir = File(context.filesDir, "executor_bind_test")
         rootfsDir.mkdirs()
+        File(rootfsDir, "etc").mkdirs()
+        File(rootfsDir, "etc/os-release").writeText("ID=test\n")
 
         val config = ProotConfig(
             prootBinaryPath = "$nativeLibDir/libproot.so",
@@ -96,6 +100,8 @@ class ProotExecutorTest {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
         val rootfsDir = File(context.filesDir, "executor_env_test")
         rootfsDir.mkdirs()
+        File(rootfsDir, "etc").mkdirs()
+        File(rootfsDir, "etc/os-release").writeText("ID=test\n")
 
         val config = ProotConfig(
             prootBinaryPath = "$nativeLibDir/libproot.so",
