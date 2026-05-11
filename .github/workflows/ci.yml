@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, wayland-compositor-qajb]
   pull_request:
     branches: [main]
 
@@ -88,6 +88,16 @@ jobs:
           meson setup builddir -Dtests=true
           meson test -C builddir --print-errorlogs
 
+      - name: Setup Android SDK + NDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
+      - name: Validate cross-compile meson setup
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          cd compositor/native
+          bash scripts/build.sh --setup-only
+
   emulator-tests:
     runs-on: ubuntu-latest
     needs: [unit-tests]
@@ -134,7 +144,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           disable-animations: true
-          script: ./gradlew connectedAndroidTest -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true || echo "::warning::Instrumented tests failed"
+          script: ./gradlew connectedAndroidTest -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Upload instrumented test results
         if: always()
         uses: actions/upload-artifact@v4
