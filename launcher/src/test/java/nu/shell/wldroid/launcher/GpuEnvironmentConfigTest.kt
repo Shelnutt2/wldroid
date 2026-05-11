@@ -36,28 +36,33 @@ class GpuEnvironmentConfigTest {
     @Test fun virglGles_setsMesaOverrideAndVtestSock() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.VIRGL_GLES, "wayland-0", "/tmp", testShimSet, "")
         assertThat(vars).containsEntry("MESA_GL_VERSION_OVERRIDE", "3.3")
+        assertThat(vars).containsEntry("MESA_GLES_VERSION_OVERRIDE", "3.2")
         assertThat(vars).containsEntry("VTEST_SOCK", "/tmp/.virgl_test")
     }
 
     @Test fun virglZink_setsZinkVars() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.VIRGL_ZINK, "wayland-0", "/tmp", testShimSet, "")
         assertThat(vars).containsEntry("MESA_GL_VERSION_OVERRIDE", "4.0")
+        assertThat(vars).containsEntry("MESA_GLES_VERSION_OVERRIDE", "3.2")
         assertThat(vars).containsEntry("VTEST_SOCK", "/tmp/.virgl_test")
-        assertThat(vars).containsEntry("GALLIUM_DRIVER", "zink")
+        assertThat(vars).doesNotContainKey("GALLIUM_DRIVER")
         assertThat(vars["VK_DRIVER_FILES"]).contains("lvp_icd")
     }
 
     @Test fun venus_setsVenusVars() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.VENUS, "wayland-0", "/tmp", testShimSet, "")
         assertThat(vars).containsEntry("GALLIUM_DRIVER", "zink")
+        assertThat(vars).containsEntry("MESA_GLES_VERSION_OVERRIDE", "3.2")
         assertThat(vars["VK_DRIVER_FILES"]).contains("virtio_icd")
+        assertThat(vars["VK_DRIVER_FILES"]).doesNotContain("aarch64")
         assertThat(vars).containsEntry("VTEST_SOCK", "/tmp/.virgl_test")
     }
 
     @Test fun turnipDirect_setsTurnipVars() {
         val vars = GpuEnvironmentConfig.buildEnvVars(GpuMode.TURNIP_DIRECT, "wayland-0", "/tmp", testShimSet, "")
-        assertThat(vars).containsEntry("GALLIUM_DRIVER", "zink")
-        assertThat(vars["VK_DRIVER_FILES"]).contains("freedreno_icd")
+        assertThat(vars).doesNotContainKey("GALLIUM_DRIVER")
+        assertThat(vars).containsEntry("MESA_VK_WSI_PRESENT_MODE", "fifo")
+        assertThat(vars["VK_DRIVER_FILES"]).contains("lvp_icd")
         assertThat(vars).doesNotContainKey("VTEST_SOCK")
     }
 
