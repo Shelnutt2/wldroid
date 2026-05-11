@@ -29,6 +29,9 @@ class DesktopLauncherStateTest {
     @Test fun extractingShims_isActive() {
         assertThat(DesktopLauncherState.ExtractingShims.isActive).isTrue()
     }
+    @Test fun setupGpu_isActive() {
+        assertThat(DesktopLauncherState.SetupGpu.isActive).isTrue()
+    }
     @Test fun installingPackages_isActive() {
         assertThat(DesktopLauncherState.InstallingPackages.isActive).isTrue()
     }
