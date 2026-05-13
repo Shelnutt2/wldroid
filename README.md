@@ -1,101 +1,76 @@
-# WLDroid — Wayland Compositor Library for Android
+# WLDroid
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-WLDroid is a standalone, modular Android library that provides a full Wayland compositor stack for running Linux desktop applications on Android devices. Built on [wlroots](https://gitlab.freedesktop.org/wlroots/wlroots), it offers zero-copy GPU rendering, proot-based Linux environment management, and a complete shim stack that bridges Android's graphics APIs with standard Linux DRM/GBM interfaces.
+WLDroid is a standalone Android library that provides a full [Wayland](https://wayland.freedesktop.org/) compositor stack for running Linux desktop applications on Android devices. It combines a [wlroots](https://gitlab.freedesktop.org/wlroots/wlroots)-based compositor, proot-managed Linux environments, VirGL GPU translation, and a DRM/GBM/EGL shim layer into a set of independent Gradle modules that can be composed as needed.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Consumer App                             │
-│                    (or :testapp module)                         │
-├─────────────────────────────────────────────────────────────────┤
-│                         :ui Module                              │
-│   CompositorSurface · SetupOverlay · GpuModeSelector           │
-│   EnvironmentPicker · EnvironmentCreator · KeyboardToggleFab   │
-├──────────┬──────────┬──────────────┬────────────────────────────┤
-│:compositor│  :proot  │    :virgl    │          :shims           │
-│          │          │              │                            │
-│ wlroots  │ RootfsM. │ VirglSession │ ShimExtractor             │
-│ JNI      │ ProotEx. │ GpuDetector  │ ShimConfig                │
-│ bridge   │ EnvReg.  │ ServerMgr    │                           │
-│          │          │              │ ┌────────────────────────┐ │
-│ Native:  │ Native:  │ Native:      │ │ drm-shim · gbm-shim   │ │
-│ C/Meson  │ proot    │ virglrender  │ │ egl-override · netstub │ │
-│ wlroots  │ talloc   │ libepoxy     │ │ drm-wrapper            │ │
-└──────────┴──────────┴──────────────┴─┴────────────────────────┘─┘
+┌──────────────────────────────────────────────────────────────────┐
+│                     Consumer App  /  :testapp                    │
+├─────────────────────────────┬────────────────────────────────────┤
+│        :launcher            │              :ui                   │
+│  DesktopLauncher            │  CompositorSurface (Compose)       │
+│  DesktopAppPreset           │  SetupOverlay · GpuModeSelector    │
+│  orchestrates all 4 below   │  EnvironmentPicker                 │
+├────────┬────────┬───────┬───┴────────────────────────────────────┤
+│:compos.│ :proot │:virgl │              :shims                    │
+│        │        │       │                                        │
+│wlroots │RootfsM.│VirglS.│ drm-shim · gbm-shim · egl-override   │
+│JNI     │ProotEx.│GpuDet.│ netstub · drm-wrapper                 │
+│AHB     │EnvReg. │SrvMgr.│ ShimExtractor                         │
+└────────┴────────┴───────┴────────────────────────────────────────┘
                               │
               ┌───────────────┴───────────────┐
-              │      external/ (17 submodules) │
-              │  3 forks + 14 upstream pinned  │
+              │     external/  (17 submodules) │
+              │   3 forks + 14 upstream pinned │
               └────────────────────────────────┘
 ```
+
+**Dependency graph:**
+
+```
+:testapp → :launcher → :compositor
+                       :proot
+                       :virgl
+                       :shims
+           :ui         (independent — Compose components)
+```
+
+The four library modules (`:compositor`, `:proot`, `:virgl`, `:shims`) have no dependencies on each other. `:launcher` orchestrates all four into a single `launch()` call. `:ui` provides standalone Compose components.
 
 ## Modules
 
 | Module | Type | Description |
 |--------|------|-------------|
-| `:compositor` | Android Library (AAR) | Core wlroots compositor with custom Android backend, AHardwareBuffer allocator, XWayland support, and JNI bridge |
-| `:proot` | Android Library (AAR) | Linux rootfs environment management — download, extract, configure, and execute commands via proot |
-| `:virgl` | Android Library (AAR) | VirGL/Venus server management, GPU capability detection, and mode selection |
-| `:shims` | Android Library (AAR) | DRM/GBM/EGL/netstub shim libraries that bridge Linux graphics APIs to Android |
-| `:ui` | Android Library (AAR) | Jetpack Compose UI components — embeddable compositor surface, setup overlays, GPU settings |
-| `:testapp` | Android App (APK) | Demo/test application for standalone development and testing |
-
-**Dependency graph:**
-```
-:testapp → :ui → :compositor
-                 :proot
-                 :virgl
-                 :shims
-```
-
-The four library modules (`:compositor`, `:proot`, `:virgl`, `:shims`) are independent of each other. The `:ui` module composes them into ready-to-use Compose components.
+| `:compositor` | AAR | wlroots compositor with custom Android backend, AHardwareBuffer allocator, XWayland, JNI bridge |
+| `:proot` | AAR | Linux rootfs management — download, extract, configure, and run commands via proot |
+| `:virgl` | AAR | VirGL/Venus server lifecycle, GPU capability detection, mode selection |
+| `:shims` | AAR | DRM/GBM/EGL/netstub shim libraries bridging Linux graphics APIs to Android |
+| `:launcher` | AAR | High-level orchestrator — wires compositor, proot, virgl, and shims into a single launch flow |
+| `:ui` | AAR | Jetpack Compose UI — embeddable compositor surface, setup overlays, GPU mode selector |
+| `:testapp` | APK | Demo application for standalone development and testing |
 
 ## Quick Start
 
-### Prerequisites
-
-- Android SDK (compileSdk 35, minSdk 29)
-- Android NDK r28
-- Meson ≥ 1.0 and Ninja
-- Python 3
-- Java 17
-
-### Clone & Build
+**Prerequisites:** Android SDK (compileSdk 35, minSdk 29), NDK r28, Meson >= 1.0, Ninja, Python 3, Java 17.
 
 ```bash
-# Clone with submodules
 git clone --recursive https://github.com/Shelnutt2/wldroid.git
 cd wldroid
 
-# Or if already cloned:
-git submodule update --init --recursive
-
 # Build the test app
 ./gradlew :testapp:assembleDebug
-
-# Build individual modules
-./gradlew :compositor:assembleDebug
-./gradlew :proot:assembleDebug
-./gradlew :virgl:assembleDebug
-./gradlew :shims:assembleDebug
 ```
 
-### Skip Flags for CI
+If already cloned without `--recursive`, run `git submodule update --init --recursive` first.
 
-Native builds can be skipped with Gradle properties:
+## Usage
 
-```bash
-./gradlew assembleDebug -PskipCompositor -PskipShims
-```
+### Embed a Compositor Surface
 
-## Library Usage
-
-### Basic: Embed a Compositor Surface
-
-The simplest integration — drop a Wayland compositor into your Compose UI:
+The `:ui` module provides a Compose component that renders a Wayland compositor inline:
 
 ```kotlin
 import nu.shell.wldroid.ui.CompositorSurface
@@ -125,179 +100,154 @@ fun MyScreen() {
 }
 ```
 
-### Intermediate: Manage Linux Environments
+### Launch a Desktop App with DesktopLauncher
 
-Use the `:proot` module to create and manage Linux rootfs environments:
+The `:launcher` module is the recommended high-level entry point. `DesktopLauncher` handles GPU detection, VirGL server startup, shim extraction, package installation, and app launch in a single call:
 
 ```kotlin
-import nu.shell.wldroid.proot.*
+import nu.shell.wldroid.launcher.*
 
-// Create environment registry
-val store = RootfsStore(context)
-val downloader = RootfsDownloader(context.cacheDir)
-val extractor = RootfsExtractor()
-val manager = RootfsManager(rootfsBaseDir, store, downloader, extractor)
-val registry = EnvironmentRegistry(manager, store, coroutineScope)
+// DesktopLauncher is typically injected or constructed with all four
+// library modules (compositor, proot, virgl, shims).
 
-// Create a Debian environment
-val env = registry.create(
-    EnvironmentConfig(
-        name = "My Desktop",
-        distro = DistroTemplate.DEBIAN_TRIXIE,
-        bindMounts = listOf(
-            BindMount("/sdcard/Documents", "/home/user/Documents"),
-        ),
-    )
+// Launch a preset application in a rootfs environment:
+launcher.launchPreset(
+    environment = myRootfsEnvironment,
+    preset = DesktopAppPreset.XTERM,
+    scope = lifecycleScope,
 )
 
-// Observe environments
-registry.environments.collect { envList ->
-    envList.forEach { println("${it.name}: ${it.status}") }
+// Or launch an arbitrary command:
+launcher.launch(
+    environment = myRootfsEnvironment,
+    command = listOf("weston-terminal"),
+    requiredPackages = listOf("weston"),
+    scope = lifecycleScope,
+)
+
+// Observe launch progress through sealed-class states:
+launcher.state.collect { state ->
+    when (state) {
+        is DesktopLauncherState.Running -> Log.d("WLDroid", "App running")
+        is DesktopLauncherState.Error -> Log.e("WLDroid", state.message)
+        else -> {}
+    }
 }
 ```
 
-### Advanced: Full Compositor + GPU Pipeline
+Available presets include `TEST_PATTERN`, `WESTON_TERMINAL`, `ES2GEARS`, `WESTON_SIMPLE_EGL`, `VKCUBE`, `XTERM`, `VSCODE`, and `FIREFOX`. Access the full list via `DesktopAppPreset.ALL`.
 
-Wire up the complete stack with GPU mode detection and VirGL:
+### Direct CompositorSession Control
+
+For lower-level control without the launcher orchestration:
 
 ```kotlin
-import nu.shell.wldroid.virgl.*
-import nu.shell.wldroid.shims.*
 import nu.shell.wldroid.compositor.*
 
-// Detect GPU capabilities
-val gpuDetector = GpuCapabilityDetector(context)
-val bestMode = gpuDetector.detectBestGpuMode()
-Log.d("WLDroid", "GPU: ${gpuDetector.getGpuSummary()}")
-Log.d("WLDroid", "Selected mode: ${bestMode.displayName}")
-
-// Start VirGL server if needed
-val virglSession = VirglSession(
-    config = VirglConfig(
-        virglBinaryPath = virglBinaryPath,
-        socketPath = socketDir.resolve(".virgl_test").absolutePath,
-        gpuMode = bestMode,
-    ),
-)
-virglSession.start()
-
-// Extract shim libraries
-val shimExtractor = ShimExtractor(context)
-val shims = shimExtractor.extractForGpuMode(targetDir, bestMode.name)
-val ldPreload = shimExtractor.getLdPreloadString(shims, bestMode.name)
-
-// Create compositor session
 val session = CompositorSession(
     CompositorConfig(
         cacheDir = cacheDir,
-        gpuMode = bestMode.name,
+        gpuMode = "VIRGL_GLES",
         xwaylandEnabled = true,
     )
 )
 
-// Start compositor with a Surface
 session.start(surface)
 
-// Monitor state
-session.state.collect { state ->
-    println("Compositor: $state")
-}
+session.state.collect { state -> /* IDLE, STARTING, RUNNING, STOPPING, STOPPED, ERROR */ }
+session.clientCount.collect { count -> /* connected Wayland clients */ }
+session.socketPath.collect { path -> /* Wayland socket for clients to connect to */ }
+
+session.stop()
 ```
 
 ## GPU Modes
 
-WLDroid supports 5 GPU rendering modes, automatically selected based on device capabilities:
+Five rendering modes, auto-detected by `GpuCapabilityDetector` based on device hardware:
 
-| Mode | Description | Server Required | Best For |
-|------|-------------|----------------|----------|
-| **Turnip Direct** | Native Vulkan via `/dev/kgsl-3d0` | No | Qualcomm Adreno devices — best performance |
-| **VirGL Zink** | Vulkan-over-VirGL translation | Yes | Devices with Vulkan but no direct GPU access |
-| **VirGL GLES** | OpenGL ES via VirGL | Yes | Broad device compatibility |
-| **Venus** | Vulkan passthrough via Venus protocol | Yes | Experimental — native Vulkan forwarding |
-| **Software** | CPU-only rendering (llvmpipe/pixman) | No | Universal fallback — works everywhere |
+| Mode | Enum | VirGL Server | Description |
+|------|------|:---:|-------------|
+| Turnip Direct | `TURNIP_DIRECT` | No | Native Vulkan via `/dev/kgsl-3d0` on Qualcomm Adreno — highest performance |
+| VirGL + Zink | `VIRGL_ZINK` | Yes | Vulkan-backed VirGL translation for devices with Vulkan but no direct GPU access |
+| VirGL + GLES | `VIRGL_GLES` | Yes | OpenGL ES via VirGL server — broad device compatibility |
+| Venus | `VENUS` | Yes | Experimental Vulkan passthrough — never auto-selected |
+| Software | `SOFTWARE` | No | CPU-only rendering (llvmpipe/pixman) — universal fallback |
 
-**Auto-detection priority:** Turnip Direct → VirGL Zink → VirGL GLES → Software
+**Auto-detection order:** Turnip Direct > VirGL Zink > VirGL GLES > Software.
 
-The GPU mode determines which shim libraries are loaded, whether a VirGL server is needed, and the buffer flow path through the compositor. See [GPU Rendering Architecture](docs/gpu-rendering.md) for detailed pipeline diagrams.
+Venus is never auto-selected; it must be set explicitly. See [GPU Rendering Architecture](docs/gpu-rendering.md) for pipeline details.
+
+## Wayland Protocols
+
+| Protocol | Version |
+|----------|:-------:|
+| `wl_compositor` | 6 |
+| `wl_subcompositor` | 1 |
+| `wl_seat` | 9 |
+| `wl_output` | 4 |
+| `wl_data_device_manager` | 3 |
+| `xdg_wm_base` | 6 |
+| `xdg_decoration_v1` | 1 |
+| `xdg_output_v1` | 1 |
+| `zwp_linux_dmabuf_v1` | 4 |
+| `zwp_text_input_v3` | 1 |
+| `zwp_pointer_constraints_v1` | 1 |
+| `zwp_relative_pointer_v1` | 1 |
+| `wp_fractional_scale_v1` | 1 |
+| `wp_viewporter` | 1 |
+| `wp_cursor_shape_v1` | 1 |
+| `wp_single_pixel_buffer_v1` | 1 |
+| `wp_primary_selection_v1` | 1 |
+| XWayland | — |
 
 ## Building
-
-### Local Build
 
 ```bash
 # Full build
 ./gradlew assembleDebug
 
-# Run Kotlin unit tests
+# Individual modules
+./gradlew :compositor:assembleDebug
+./gradlew :launcher:assembleDebug
+
+# Skip expensive native builds
+./gradlew assembleDebug -PskipCompositor -PskipProot -PskipVirgl -PskipShims
+
+# Kotlin unit tests
 ./gradlew test
 
-# Run native tests (host x86_64)
-cd compositor/native
-meson setup builddir
-meson test -C builddir
-
-# Run instrumented tests (requires device/emulator)
-./gradlew connectedAndroidTest
-```
-
-### Docker Build (Shims)
-
-Shim libraries target Linux glibc aarch64 and can be cross-compiled in Docker for reproducibility:
-
-```bash
-# Build Docker image
-docker build -t wldroid-builder docker/
-
-# Build all shims
-docker run -v $(pwd):/workspace wldroid-builder
-```
-
-See [Build System](docs/build-system.md) for the full build architecture and [Development Guide](docs/development.md) for contributor setup.
-
-## Testing
-
-```bash
-# All Kotlin unit tests
-./gradlew test
-
-# Compositor native tests
+# Compositor native tests (host x86_64)
 cd compositor/native && meson setup builddir && meson test -C builddir
 
-# Shim native tests (GBM shim: 64 tests)
+# GBM shim native tests
 cd shims/native/gbm-shim && meson setup builddir && meson test -C builddir
 
-# Instrumented tests on device
+# Instrumented tests (requires device/emulator)
 ./gradlew connectedAndroidTest
 ```
 
-See [Testing Strategy](docs/testing.md) for the full test architecture.
+Shim libraries target Linux glibc aarch64 (not Android bionic) and can be cross-compiled in Docker for reproducibility. See [Build System](docs/build-system.md) for details.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Build System](docs/build-system.md) | Meson + Gradle build architecture, cross-compilation, Docker builds |
-| [Compositor Architecture](docs/compositor-architecture.md) | wlroots compositor internals, Android backend, AHB allocator |
-| [GPU Rendering](docs/gpu-rendering.md) | 5 GPU modes with pipeline diagrams, environment variables |
-| [Shim Libraries](docs/shims.md) | DRM/GBM/EGL/netstub shim details and interception architecture |
-| [Integration Guide](docs/integration-guide.md) | How to consume WLDroid as a library dependency |
+| [Build System](docs/build-system.md) | Meson + Gradle build architecture, cross-compilation, Docker |
+| [Compositor Architecture](docs/compositor-architecture.md) | wlroots internals, Android backend, AHB allocator |
+| [GPU Rendering](docs/gpu-rendering.md) | GPU mode pipelines, environment variables, buffer flow |
+| [Shim Libraries](docs/shims.md) | DRM/GBM/EGL/netstub interception architecture |
+| [Integration Guide](docs/integration-guide.md) | Consuming WLDroid as a library dependency |
 | [API Reference](docs/api-reference.md) | Kotlin API documentation for all modules |
-| [Development Guide](docs/development.md) | Setting up dev environment, building, contributing |
-| [Testing Strategy](docs/testing.md) | Test layers, running tests, CI pipeline |
+| [Migration Guide](docs/migration-guide.md) | Migrating from previous versions |
+| [Development Guide](docs/development.md) | Dev environment setup, building, conventions |
+| [Testing Strategy](docs/testing.md) | Test layers, native tests, CI pipeline |
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please see the [Development Guide](docs/development.md) for setup instructions and coding conventions.
+See the [Development Guide](docs/development.md) for setup and conventions. Fork the repo, create a feature branch, and open a pull request.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes with clear messages
-4. Push to your fork and submit a Pull Request
-
-### Native Dependencies
-
-WLDroid maintains 3 forks with Android-specific patches and 14 upstream-pinned submodules. See [Build System](docs/build-system.md) for fork management and submodule details.
+WLDroid depends on 17 git submodules in `external/` (3 forks carrying Android patches, 14 upstream pinned to release tags). See [Build System](docs/build-system.md) for submodule management.
