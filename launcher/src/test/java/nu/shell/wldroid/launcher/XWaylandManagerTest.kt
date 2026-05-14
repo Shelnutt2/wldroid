@@ -159,4 +159,49 @@ class XWaylandManagerTest {
         assertThat(x11Dir.exists()).isTrue()
         assertThat(x11Dir.isDirectory).isTrue()
     }
+
+    @Test fun prepare_extractsWrapperAndCreatesTmpDir() {
+        val manager = createManager()
+        val env = createEnvironment()
+        val tempDir = tmpDir.newFolder("proot-tmp")
+
+        val result = manager.prepare(env, tempDir.absolutePath)
+
+        assertThat(result.wrapperScriptPath).isEqualTo(manager.wrapperScriptPath)
+        assertThat(java.io.File(result.wrapperScriptPath).exists()).isTrue()
+        assertThat(java.io.File(tempDir, ".X11-unix").exists()).isTrue()
+        assertThat(java.io.File(tempDir, ".X11-unix").isDirectory).isTrue()
+    }
+
+    @Test fun prepare_returnsCorrectPath() {
+        val manager = createManager()
+        val env = createEnvironment()
+        val tempDir = tmpDir.newFolder("temp")
+
+        val result = manager.prepare(env, tempDir.absolutePath)
+
+        assertThat(result.wrapperScriptPath).endsWith("xwayland-wrapper.sh")
+        assertThat(result.wrapperScriptPath).isEqualTo(manager.wrapperScriptPath)
+    }
+
+    @Test fun prepare_wrapperIsExecutable() {
+        val manager = createManager()
+        val env = createEnvironment()
+        val tempDir = tmpDir.newFolder("temp2")
+
+        val result = manager.prepare(env, tempDir.absolutePath)
+
+        assertThat(java.io.File(result.wrapperScriptPath).canExecute()).isTrue()
+    }
+
+    @Test fun prepare_idempotent() {
+        val manager = createManager()
+        val env = createEnvironment()
+        val tempDir = tmpDir.newFolder("temp3")
+
+        val result1 = manager.prepare(env, tempDir.absolutePath)
+        val result2 = manager.prepare(env, tempDir.absolutePath)
+
+        assertThat(result1).isEqualTo(result2)
+    }
 }

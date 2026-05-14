@@ -46,10 +46,12 @@ class CompositorSession(private val config: CompositorConfig) {
                 Os.setenv("AHB_REGISTRY_SOCKET", config.ahbRegistrySocketPath, true)
             }
 
-            // Set WLR_XWAYLAND so wlroots can find the Xwayland binary (or wrapper
-            // script). Must be set before nativeStartCompositor() which calls
-            // wlr_xwayland_create() during server_init().
+            // Validate XWayland wrapper path before starting the compositor.
+            // The wrapper script must already exist on disk; use
+            // CompositorConfigFactory.createWithXWayland() or call
+            // XWaylandManager.prepare() before constructing CompositorConfig.
             if (config.xwaylandEnabled && config.xwaylandBinaryPath.isNotEmpty()) {
+                config.validate()
                 Os.setenv("WLR_XWAYLAND", config.xwaylandBinaryPath, true)
             }
 
