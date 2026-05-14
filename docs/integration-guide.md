@@ -6,7 +6,28 @@ This guide explains how to consume WLDroid as a library in your Android applicat
 
 ### Repository Setup
 
-WLDroid artifacts are published to GitHub Packages. Add the repository to your `settings.gradle.kts`:
+WLDroid artifacts are available from GitHub Releases (recommended) or GitHub Packages.
+
+See [CONSUMING.md](../CONSUMING.md) for full details on all resolution options, including the Maven repo zip from GitHub Releases (no authentication required) and GitHub Packages (requires a PAT with `read:packages` scope).
+
+Quick setup using the Maven repo zip from a GitHub Release:
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            // Path to extracted wldroid-maven-repo.zip from the GitHub Release
+            url = uri("/path/to/wldroid-maven")
+            content { includeGroup("nu.shell.wldroid") }
+        }
+    }
+}
+```
+
+Or with GitHub Packages (requires authentication):
 
 ```kotlin
 // settings.gradle.kts

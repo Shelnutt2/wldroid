@@ -65,6 +65,10 @@ afterEvaluate {
                         ?: findProperty("gpr.key")?.toString() ?: ""
                 }
             }
+            maven {
+                name = "FileSystemMavenRepo"
+                url = uri("${rootProject.layout.buildDirectory.get().asFile}/maven-repo")
+            }
         }
     }
 }
