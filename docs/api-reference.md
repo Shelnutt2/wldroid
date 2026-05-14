@@ -58,11 +58,19 @@ class CompositorSession(config: CompositorConfig) {
     val input: CompositorInput                  // Input event dispatcher (new instance per access)
 
     // Lifecycle
-    fun start(surface: Surface)                 // Start compositor → IDLE→STARTING→RUNNING
+    fun start(surface: Surface)                 // Start compositor; rejects double-start
     fun stop()                                  // Stop compositor → STOPPING→STOPPED
+    fun stopAsync()                             // Stop on background thread (Mali GPU workaround)
     fun resizeOutput(width: Int, height: Int)   // Handle surface resize
     fun refreshClientCount()                    // Poll native client count
 }
+```
+
+Lifecycle notes:
+- `start()` throws `IllegalStateException` if already STARTING or RUNNING.
+- After `stop()`, the session resets its internal guard and can be restarted via `start()`.
+- Both `stop()` and `stopAsync()` clean stale wayland sockets and reset `socketPath` to null.
+- `stopAsync()` runs shutdown on a background thread to avoid Mali GPU SIGSEGV.
 ```
 
 ### CompositorConfig
@@ -622,6 +630,97 @@ class CompositorConfigFactory(
         xkbBasePath: String = "",
         gpuMode: String = "AUTO",
     ): CompositorConfig
+
+### DesktopSession
+
+Unified lifecycle manager for a complete desktop session. Recommended entry point for downstream apps.
+
+```kotlin
+class DesktopSession(
+    val compositorSession: CompositorSession,
+    val launcher: DesktopLauncher,
+) {
+    val state: StateFlow<DesktopSessionState>
+
+    fun start(
+        surface: Surface,
+        environment: RootfsEnvironment,
+        command: List<String>,
+        scope: CoroutineScope,
+        requiredPackages: List<String> = emptyList(),
+    )
+
+    suspend fun stop()    // Deterministic teardown: launcher + VirGL + compositor
+
+    suspend fun restart(  // stop() + start()
+        surface: Surface,
+        environment: RootfsEnvironment,
+        command: List<String>,
+        scope: CoroutineScope,
+        requiredPackages: List<String> = emptyList(),
+    )
+}
+```
+
+### DesktopSessionState
+
+```kotlin
+enum class DesktopSessionState {
+    IDLE,       // No session active
+    STARTING,   // Compositor + launcher pipeline starting
+    RUNNING,    // Session active
+    STOPPING,   // Tearing down all resources
+    STOPPED,    // Clean shutdown (can restart)
+    ERROR,      // Startup error
+}
+```
+
+### DesktopLauncher
+
+Orchestrates the two-phase desktop app launch pipeline (GPU setup + app launch).
+
+```kotlin
+class DesktopLauncher(
+    context: Context,
+    compositorSession: CompositorSession,
+    virglSession: VirglSession,
+    shimExtractor: ShimExtractor,
+    prootExecutor: ProotExecutor,
+    config: DesktopLauncherConfig,
+) {
+    val state: StateFlow<DesktopLauncherState>
+    val processOutput: SharedFlow<String>
+    val gpuMode: StateFlow<GpuMode>
+
+    fun launch(
+        environment: RootfsEnvironment,
+        command: List<String>,
+        requiredPackages: List<String> = emptyList(),
+        scope: CoroutineScope,
+    )
+    fun launchPreset(environment: RootfsEnvironment, preset: DesktopAppPreset, scope: CoroutineScope)
+    suspend fun stop()     // Kills proot, stops VirGL, cleans stale files
+}
+```
+
+### DesktopLauncherState
+
+```kotlin
+sealed class DesktopLauncherState {
+    data object Idle : DesktopLauncherState()
+    data object StartingCompositor : DesktopLauncherState()
+    data object DetectingGpu : DesktopLauncherState()
+    data object StartingVirgl : DesktopLauncherState()
+    data object ExtractingShims : DesktopLauncherState()
+    data object SetupGpu : DesktopLauncherState()
+    data object InstallingPackages : DesktopLauncherState()
+    data object LaunchingApp : DesktopLauncherState()
+    data object Running : DesktopLauncherState()
+    data object Stopping : DesktopLauncherState()
+    data class Error(val message: String, val phase: String, val cause: Throwable? = null)
+
+    val isActive: Boolean    // true for all non-terminal states
+    val isTerminal: Boolean  // true for Idle or Error
 }
 ```
 

@@ -26,7 +26,18 @@ class CompositorSession(private val config: CompositorConfig) {
     /** Guard to prevent double-stop (matches original CompositorActivity pattern). */
     private val stopRequested = AtomicBoolean(false)
 
+    /** Cached runtime directory so cleanupOnStop() can remove stale sockets. */
+    private var runtimeDir: File? = null
+
     fun start(surface: Surface) {
+        val current = _state.value
+        if (current == CompositorState.STARTING || current == CompositorState.RUNNING) {
+            throw IllegalStateException(
+                "Cannot start compositor while in state $current"
+            )
+        }
+
+        stopRequested.set(false)
         _state.value = CompositorState.STARTING
         try {
             // Set AHB_REGISTRY_SOCKET env var so the native compositor can open the
@@ -45,11 +56,12 @@ class CompositorSession(private val config: CompositorConfig) {
             }
 
             // Create a dedicated wayland-runtime subdirectory and clean stale sockets.
-            val runtimeDir = File(config.cacheDir, "wayland-runtime")
-            runtimeDir.mkdirs()
-            cleanStaleWaylandFiles(runtimeDir)
+            val dir = File(config.cacheDir, "wayland-runtime")
+            dir.mkdirs()
+            cleanStaleWaylandFiles(dir)
+            runtimeDir = dir
 
-            server.nativeStartCompositor(surface, runtimeDir.absolutePath, config.xkbBasePath)
+            server.nativeStartCompositor(surface, dir.absolutePath, config.xkbBasePath)
 
             val socketName = server.nativeGetSocketName()
             if (socketName == null) {
@@ -78,6 +90,12 @@ class CompositorSession(private val config: CompositorConfig) {
         dir.listFiles()?.filter { it.name.startsWith("wayland-") }?.forEach { it.delete() }
     }
 
+    /** Reset observable state and clean stale socket files after the compositor stops. */
+    private fun cleanupOnStop() {
+        _socketPath.value = null
+        runtimeDir?.let { cleanStaleWaylandFiles(it) }
+    }
+
     /**
      * Stop the compositor synchronously (blocks until the event-loop thread
      * exits and resources are destroyed).  Safe to call multiple times —
@@ -89,6 +107,7 @@ class CompositorSession(private val config: CompositorConfig) {
         try {
             server.nativeStopCompositor()
         } finally {
+            cleanupOnStop()
             _state.value = CompositorState.STOPPED
         }
     }
@@ -110,6 +129,7 @@ class CompositorSession(private val config: CompositorConfig) {
             try {
                 server.nativeStopCompositor()
             } finally {
+                cleanupOnStop()
                 _state.value = CompositorState.STOPPED
             }
         }.start()

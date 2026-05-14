@@ -181,4 +181,210 @@ class RootfsManagerTest {
         val usage = manager.getDiskUsage("size-test")
         assertThat(usage).isGreaterThan(0)
     }
+
+    // ── Create -> Lookup round-trip tests ──
+
+    @Test
+    fun storeAddThenLookupReturnsEnvironment() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val envId = "lookup-test-${System.nanoTime()}"
+
+        val env = RootfsEnvironment(
+            id = envId,
+            name = "Lookup Test",
+            rootfsPath = "${testBaseDir.absolutePath}/$envId",
+            distro = "debian",
+            createdAt = System.currentTimeMillis(),
+            sizeBytes = 512L,
+            status = RootfsStatus.READY,
+        )
+
+        // Add to store
+        store.addEnvironment(env)
+
+        // Immediate lookup must find the environment
+        val envs = store.getEnvironments().first()
+        val found = envs.firstOrNull { it.id == envId }
+        assertThat(found).isNotNull()
+        assertThat(found!!.id).isEqualTo(envId)
+        assertThat(found.name).isEqualTo("Lookup Test")
+        assertThat(found.distro).isEqualTo("debian")
+        assertThat(found.status).isEqualTo(RootfsStatus.READY)
+
+        // Clean up
+        store.removeEnvironment(envId)
+    }
+
+    @Test
+    fun storeAddVerificationSucceedsImmediately() = runTest {
+        // Simulates the readback verification added to createEnvironment
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val envId = "verify-test-${System.nanoTime()}"
+
+        val env = RootfsEnvironment(
+            id = envId,
+            name = "Verify Test",
+            rootfsPath = "${testBaseDir.absolutePath}/$envId",
+            distro = "DEBIAN_TRIXIE",
+            createdAt = System.currentTimeMillis(),
+            status = RootfsStatus.READY,
+        )
+
+        store.addEnvironment(env)
+
+        // Readback verification (same pattern as RootfsManager.createEnvironment)
+        val persisted = store.getEnvironments().first()
+        assertThat(persisted.any { it.id == envId }).isTrue()
+
+        // Clean up
+        store.removeEnvironment(envId)
+    }
+
+    // ── Orphan recovery tests ──
+
+    @Test
+    fun findOrphanedEnvironmentsDetectsUnregisteredDirs() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val downloader = RootfsDownloader(testCacheDir)
+        val extractor = RootfsExtractor()
+        val manager = RootfsManager(testBaseDir, store, downloader, extractor)
+
+        // Create a valid orphaned rootfs directory
+        val orphanId = "orphan-${System.nanoTime()}"
+        val orphanDir = File(testBaseDir, orphanId)
+        File(orphanDir, "etc").mkdirs()
+        File(orphanDir, "etc/os-release").writeText("ID=debian\nVERSION_CODENAME=trixie\n")
+
+        // Create a registered environment
+        val registeredId = "registered-${System.nanoTime()}"
+        val registeredDir = File(testBaseDir, registeredId)
+        File(registeredDir, "etc").mkdirs()
+        File(registeredDir, "etc/os-release").writeText("ID=debian\n")
+        store.addEnvironment(
+            RootfsEnvironment(
+                id = registeredId,
+                name = registeredId,
+                rootfsPath = registeredDir.absolutePath,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+
+        val orphans = manager.findOrphanedEnvironments()
+        assertThat(orphans).contains(orphanId)
+        assertThat(orphans).doesNotContain(registeredId)
+
+        // Clean up
+        store.removeEnvironment(registeredId)
+    }
+
+    @Test
+    fun adoptOrphanedEnvironmentsRegistersInStore() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val downloader = RootfsDownloader(testCacheDir)
+        val extractor = RootfsExtractor()
+        val manager = RootfsManager(testBaseDir, store, downloader, extractor)
+
+        // Create orphaned rootfs directory
+        val orphanId = "adopt-test-${System.nanoTime()}"
+        val orphanDir = File(testBaseDir, orphanId)
+        File(orphanDir, "etc").mkdirs()
+        File(orphanDir, "etc/os-release").writeText("ID=debian\nVERSION_CODENAME=trixie\n")
+        File(orphanDir, "home/user").mkdirs()
+
+        // Adopt orphans
+        val adopted = manager.adoptOrphanedEnvironments()
+        assertThat(adopted).isNotEmpty()
+        val adoptedEnv = adopted.first { it.id == orphanId }
+        assertThat(adoptedEnv.name).isEqualTo(orphanId)
+        assertThat(adoptedEnv.distro).isEqualTo("debian")
+        assertThat(adoptedEnv.status).isEqualTo(RootfsStatus.READY)
+
+        // Verify it's now in the store
+        val envs = store.getEnvironments().first()
+        assertThat(envs.any { it.id == orphanId }).isTrue()
+
+        // Verify a second adoption finds nothing
+        val secondAdoption = manager.adoptOrphanedEnvironments()
+        assertThat(secondAdoption.none { it.id == orphanId }).isTrue()
+
+        // Clean up
+        store.removeEnvironment(orphanId)
+    }
+
+    @Test
+    fun adoptOrphanedEnvironmentsReturnsEmptyWhenNoneExist() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val downloader = RootfsDownloader(testCacheDir)
+        val extractor = RootfsExtractor()
+        val manager = RootfsManager(testBaseDir, store, downloader, extractor)
+
+        val adopted = manager.adoptOrphanedEnvironments()
+        assertThat(adopted).isEmpty()
+    }
+
+    // ── Persistence across process restart simulation ──
+
+    @Test
+    fun storePersistsAcrossNewStoreInstance() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val envId = "persist-test-${System.nanoTime()}"
+
+        // Write with one store instance
+        val store1 = RootfsStore(context)
+        store1.addEnvironment(
+            RootfsEnvironment(
+                id = envId,
+                name = "Persist Test",
+                rootfsPath = "${testBaseDir.absolutePath}/$envId",
+                distro = "debian",
+                createdAt = System.currentTimeMillis(),
+                status = RootfsStatus.READY,
+            ),
+        )
+
+        // Read with a new store instance (simulates process restart,
+        // since DataStore is backed by the same file on disk)
+        val store2 = RootfsStore(context)
+        val envs = store2.getEnvironments().first()
+        val found = envs.firstOrNull { it.id == envId }
+        assertThat(found).isNotNull()
+        assertThat(found!!.name).isEqualTo("Persist Test")
+        assertThat(found.distro).isEqualTo("debian")
+
+        // Clean up
+        store1.removeEnvironment(envId)
+    }
+
+    @Test
+    fun managerGetEnvironmentsReflectsStoreAfterAdd() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val store = RootfsStore(context)
+        val downloader = RootfsDownloader(testCacheDir)
+        val extractor = RootfsExtractor()
+        val manager = RootfsManager(testBaseDir, store, downloader, extractor)
+        val envId = "manager-reflect-${System.nanoTime()}"
+
+        // Add via store
+        store.addEnvironment(
+            RootfsEnvironment(
+                id = envId,
+                name = "Manager Reflect",
+                rootfsPath = "${testBaseDir.absolutePath}/$envId",
+                createdAt = System.currentTimeMillis(),
+                status = RootfsStatus.READY,
+            ),
+        )
+
+        // Read via manager (which delegates to store)
+        val envs = manager.getEnvironments().first()
+        assertThat(envs.any { it.id == envId }).isTrue()
+
+        // Clean up
+        store.removeEnvironment(envId)
+    }
 }

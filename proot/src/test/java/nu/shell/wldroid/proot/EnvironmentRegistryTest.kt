@@ -90,4 +90,42 @@ class EnvironmentRegistryTest {
         assertThat(distros.map { it.displayName }).contains("Debian Trixie")
         assertThat(distros.map { it.displayName }).contains("Debian Bookworm")
     }
+
+    @Test
+    fun `RootfsEnvironment can be constructed with recovery metadata`() {
+        // Verifies that environments adopted from orphaned directories
+        // can be represented with the existing data model
+        val env = RootfsEnvironment(
+            id = "orphan-id",
+            name = "orphan-id", // adopted environments use dir name
+            rootfsPath = "/data/rootfs/orphan-id",
+            distro = "debian",
+            createdAt = 1700000000000L, // inferred from dir modification time
+            sizeBytes = 500_000_000L,
+            status = RootfsStatus.READY,
+        )
+        assertThat(env.id).isEqualTo("orphan-id")
+        assertThat(env.name).isEqualTo("orphan-id")
+        assertThat(env.distro).isEqualTo("debian")
+        assertThat(env.status).isEqualTo(RootfsStatus.READY)
+        assertThat(env.lastUsedAt).isNull()
+    }
+
+    @Test
+    fun `RootfsEnvironment serialization round-trips recovery metadata`() {
+        val env = RootfsEnvironment(
+            id = "recovered",
+            name = "recovered",
+            rootfsPath = "/data/rootfs/recovered",
+            distro = "debian",
+            createdAt = 1700000000000L,
+            sizeBytes = 100L,
+            status = RootfsStatus.READY,
+        )
+        val json = RootfsStore.serializeEnvironmentList(listOf(env))
+        val parsed = RootfsStore.parseEnvironmentList(json)
+        assertThat(parsed).hasSize(1)
+        assertThat(parsed[0].id).isEqualTo("recovered")
+        assertThat(parsed[0].distro).isEqualTo("debian")
+    }
 }

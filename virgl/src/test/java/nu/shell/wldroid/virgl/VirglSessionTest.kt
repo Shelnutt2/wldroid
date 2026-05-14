@@ -83,4 +83,55 @@ class VirglSessionTest {
             VirglState.ERROR,
         )
     }
+
+    @Test
+    fun `restart cycle - start stop start works for software mode`() = runTest {
+        val config = VirglConfig(gpuMode = GpuMode.SOFTWARE)
+        val session = VirglSession(config)
+
+        // First cycle
+        session.start()
+        assertThat(session.state.value).isEqualTo(VirglState.RUNNING)
+        session.stop()
+        assertThat(session.state.value).isEqualTo(VirglState.STOPPED)
+
+        // Second cycle
+        session.start()
+        assertThat(session.state.value).isEqualTo(VirglState.RUNNING)
+        assertThat(session.isHealthy()).isTrue()
+        session.stop()
+        assertThat(session.state.value).isEqualTo(VirglState.STOPPED)
+    }
+
+    @Test
+    fun `double start is no-op when already running`() = runTest {
+        val config = VirglConfig(gpuMode = GpuMode.SOFTWARE)
+        val session = VirglSession(config)
+        session.start()
+        assertThat(session.state.value).isEqualTo(VirglState.RUNNING)
+
+        // Second start should be a no-op
+        session.start()
+        assertThat(session.state.value).isEqualTo(VirglState.RUNNING)
+    }
+
+    @Test
+    fun `double stop is no-op when already stopped`() = runTest {
+        val config = VirglConfig(gpuMode = GpuMode.SOFTWARE)
+        val session = VirglSession(config)
+        session.start()
+        session.stop()
+        assertThat(session.state.value).isEqualTo(VirglState.STOPPED)
+
+        // Second stop should be a no-op (no crash)
+        session.stop()
+        assertThat(session.state.value).isEqualTo(VirglState.STOPPED)
+    }
+
+    @Test
+    fun `stop when idle is no-op`() = runTest {
+        val session = VirglSession(VirglConfig())
+        session.stop()
+        assertThat(session.state.value).isEqualTo(VirglState.IDLE)
+    }
 }

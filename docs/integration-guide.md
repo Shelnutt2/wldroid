@@ -444,33 +444,68 @@ session.start(surface)
 
 ## Lifecycle Management
 
+### DesktopSession (Recommended)
+
+`DesktopSession` is the recommended high-level API for managing the entire desktop session lifecycle. It wraps `CompositorSession` and `DesktopLauncher` to provide a single cleanup path:
+
+```kotlin
+val session = DesktopSession(compositorSession, launcher)
+
+// Start: compositor + full launch pipeline
+session.start(surface, environment, command, scope)
+
+// Stop: deterministic teardown of all resources
+session.stop()
+
+// Restart: stop + start in one call (e.g. for retry flows)
+session.restart(surface, environment, command, scope)
+```
+
+`stop()` tears down resources in the correct order:
+1. **Launcher**: kills the proot process (SIGTERM, then SIGKILL), stops VirGL server, cleans stale files.
+2. **Compositor**: shuts down the native Wayland server, cleans wayland sockets.
+
+The session can be restarted after `stop()` completes.
+
+> **Note:** `DesktopSession.stop()` is the single documented cleanup path. Downstream apps do not need to call `compositorSession.stop()` or `virglSession.stop()` separately.
+
+### Process-global State
+
+The compositor sets `AHB_REGISTRY_SOCKET` and `WLR_XWAYLAND` as process-global environment variables via `Os.setenv()`. These survive across session restarts within the same Android process. This is safe for single-session usage (one compositor at a time), but callers should be aware that these values persist until the process exits.
+
 ### CompositorSession Lifecycle
 
 The `CompositorSession` manages the native compositor lifecycle:
 
 ```
 IDLE → STARTING → RUNNING → STOPPING → STOPPED
-                     ↓
-                   ERROR
+                     ↓                     ↓
+                   ERROR              (can restart)
 ```
 
 - Call `start(surface)` when the Android Surface is ready
 - Call `stop()` when the Surface is destroyed or the Activity is finishing
 - Observe `state` to react to lifecycle changes
 - The compositor thread is automatically cleaned up on `stop()`
+- `start()` rejects double-start (throws `IllegalStateException` if STARTING or RUNNING)
+- After `stop()`, the session can be restarted by calling `start()` again
+- Stale wayland sockets are cleaned on both `start()` and `stop()`
 
 ### VirglSession Lifecycle
 
 ```
 IDLE → DETECTING_GPU → STARTING → RUNNING → STOPPING → STOPPED
-                                     ↓
-                                  UNHEALTHY → (auto-restart)
+                                     ↓                     ↓
+                                  UNHEALTHY           (can restart)
                                      ↓
                                    ERROR
 ```
 
 - `VirglSession` includes a health check that monitors the server process every 5 seconds
 - If the server dies unexpectedly, state transitions to `UNHEALTHY`
+- `start()` is a no-op if already STARTING or RUNNING
+- `stop()` is a no-op if already IDLE or STOPPED
+- After `stop()`, the session can be restarted by calling `start()` again
 
 ### Environment Lifecycle
 

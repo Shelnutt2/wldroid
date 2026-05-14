@@ -53,4 +53,12 @@ class CompositorSessionTest {
         // ERROR is the terminal error state
         assertEquals(5, error.ordinal)
     }
+
+    @Test
+    fun `config xwayland defaults`() {
+        val config = CompositorConfig.default()
+        assertEquals(true, config.xwaylandEnabled)
+        assertEquals("", config.xwaylandBinaryPath)
+        assertEquals("", config.ahbRegistrySocketPath)
+    }
 }
