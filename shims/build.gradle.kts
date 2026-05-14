@@ -24,6 +24,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 
     sourceSets {
@@ -76,8 +77,8 @@ dependencies {
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
-
 
 extra["publishArtifactId"] = "wldroid-shims"
 extra["publishDescription"] = "DRM/GBM/EGL/netstub shim libraries for Linux-on-Android environments"

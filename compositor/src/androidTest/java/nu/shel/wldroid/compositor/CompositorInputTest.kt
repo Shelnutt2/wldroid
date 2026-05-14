@@ -1,9 +1,12 @@
 package nu.shel.wldroid.compositor
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [CompositorInput] API surface.
@@ -15,6 +18,8 @@ import org.junit.runners.JUnit4
  */
 @RunWith(JUnit4::class)
 class CompositorInputTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     @Test
     fun inputObjectCreationRequiresServer() {

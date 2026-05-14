@@ -29,6 +29,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 }
 
@@ -64,8 +65,8 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
-
 
 extra["publishArtifactId"] = "wldroid-ui"
 extra["publishDescription"] = "Jetpack Compose UI components for WLDroid compositor integration"

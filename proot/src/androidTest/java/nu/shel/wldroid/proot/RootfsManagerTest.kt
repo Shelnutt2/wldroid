@@ -6,10 +6,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [RootfsManager] filesystem operations.
@@ -19,6 +22,8 @@ import java.io.File
  */
 @RunWith(JUnit4::class)
 class RootfsManagerTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     private lateinit var testBaseDir: File
     private lateinit var testCacheDir: File

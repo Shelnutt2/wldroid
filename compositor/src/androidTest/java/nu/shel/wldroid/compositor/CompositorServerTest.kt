@@ -2,9 +2,12 @@ package nu.shel.wldroid.compositor
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [CompositorServer] and the native JNI bridge.
@@ -17,6 +20,8 @@ import org.junit.runners.JUnit4
  */
 @RunWith(JUnit4::class)
 class CompositorServerTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     companion object {
         /** Returns true if the throwable is a native library load failure. */

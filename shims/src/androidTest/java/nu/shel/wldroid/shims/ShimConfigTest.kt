@@ -1,15 +1,20 @@
 package nu.shel.wldroid.shims
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [ShimConfig] — verifies shim selection per GPU mode.
  */
 @RunWith(JUnit4::class)
 class ShimConfigTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     @Test
     fun defaultConfigEnablesAllShims() {

@@ -31,6 +31,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 }
 
@@ -83,8 +84,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
     androidTestImplementation(libs.coroutines.test)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
-
 
 extra["publishArtifactId"] = "wldroid-proot"
 extra["publishDescription"] = "PRoot environment management for running Linux apps on Android"
