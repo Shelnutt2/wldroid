@@ -70,7 +70,16 @@ class EnvironmentRegistry(
             throw IllegalStateException("Failed to create environment '${config.name}'", e)
         }
 
-        return rootfsManager.getEnvironments().first().first { it.id == id }
+        if (stateFlow.value == EnvironmentState.ERROR) {
+            throw IllegalStateException(
+                "Environment creation failed for '${config.name}' (id=$id)",
+            )
+        }
+
+        return rootfsManager.getEnvironments().first().firstOrNull { it.id == id }
+            ?: throw IllegalStateException(
+                "Environment '${config.name}' (id=$id) not found in store after creation",
+            )
     }
 
     /**
@@ -192,6 +201,25 @@ class EnvironmentRegistry(
 
         Log.i(TAG, "Exported environment '$id' to $outputPath")
     }
+
+    /**
+     * Recovers orphaned rootfs directories that exist on disk but are not
+     * tracked in the environment store.
+     *
+     * This can happen if the app crashes between rootfs extraction and the
+     * store write, or if store data is cleared or corrupted. This method
+     * is the intentional recovery API for downstream apps to call at startup
+     * instead of manually reconstructing [RootfsEnvironment] records.
+     *
+     * Adopted environments use the directory name as ID and name, with
+     * distro inferred from the rootfs `etc/os-release` file.
+     *
+     * @return List of newly adopted [RootfsEnvironment] records, empty if
+     *         no orphans were found
+     * @see RootfsManager.adoptOrphanedEnvironments
+     */
+    suspend fun recoverOrphanedEnvironments(): List<RootfsEnvironment> =
+        rootfsManager.adoptOrphanedEnvironments()
 
     /**
      * Returns a [StateFlow] tracking the current state of an environment.

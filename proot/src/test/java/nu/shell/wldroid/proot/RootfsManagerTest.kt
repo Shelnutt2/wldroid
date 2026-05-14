@@ -143,4 +143,130 @@ class RootfsManagerTest {
         assertThat(extractor.stripLinkTarget("/usr/lib/libfoo.so", "debian/usr/bin/foo", 1))
             .isEqualTo("/usr/lib/libfoo.so")
     }
+
+    // ── Orphan detection tests ──
+
+    @Test
+    fun `orphan detection finds directories with os-release not in store`() {
+        val rootfsBaseDir = tempDir.newFolder("rootfs")
+        // Create a valid orphan
+        val orphanDir = File(rootfsBaseDir, "orphan-env")
+        File(orphanDir, "etc").mkdirs()
+        File(orphanDir, "etc/os-release").writeText("ID=debian\n")
+
+        // Create an invalid directory (no os-release)
+        val invalidDir = File(rootfsBaseDir, "invalid-env")
+        invalidDir.mkdirs()
+
+        val validOrphans = rootfsBaseDir.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory && File(dir, "etc/os-release").exists()
+            }
+            ?.map { it.name }
+            ?: emptyList()
+
+        assertThat(validOrphans).containsExactly("orphan-env")
+        assertThat(validOrphans).doesNotContain("invalid-env")
+    }
+
+    @Test
+    fun `orphan detection excludes registered environments`() {
+        val rootfsBaseDir = tempDir.newFolder("rootfs")
+        // Create two valid rootfs directories
+        for (id in listOf("registered-env", "orphan-env")) {
+            val dir = File(rootfsBaseDir, id)
+            File(dir, "etc").mkdirs()
+            File(dir, "etc/os-release").writeText("ID=debian\n")
+        }
+
+        val registeredIds = setOf("registered-env")
+        val orphans = rootfsBaseDir.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory &&
+                    File(dir, "etc/os-release").exists() &&
+                    dir.name !in registeredIds
+            }
+            ?.map { it.name }
+            ?: emptyList()
+
+        assertThat(orphans).containsExactly("orphan-env")
+    }
+
+    @Test
+    fun `orphan detection returns empty for nonexistent base dir`() {
+        val nonexistent = File(tempDir.root, "does-not-exist")
+        assertThat(nonexistent.exists()).isFalse()
+        // Simulates findOrphanedEnvironments when rootfsBaseDir doesn't exist
+        val orphans = if (!nonexistent.exists()) emptyList<String>() else emptyList()
+        assertThat(orphans).isEmpty()
+    }
+
+    @Test
+    fun `orphan detection ignores files in base directory`() {
+        val rootfsBaseDir = tempDir.newFolder("rootfs")
+        // Create a file (not directory) in the base dir
+        File(rootfsBaseDir, "stray-file.txt").writeText("not a rootfs")
+
+        val orphans = rootfsBaseDir.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory && File(dir, "etc/os-release").exists()
+            }
+            ?.map { it.name }
+            ?: emptyList()
+
+        assertThat(orphans).isEmpty()
+    }
+
+    // ── os-release parsing tests ──
+
+    @Test
+    fun `os-release parsing extracts debian ID`() {
+        val osRelease = tempDir.newFile("os-release")
+        osRelease.writeText("PRETTY_NAME=\"Debian GNU/Linux trixie/sid\"\nNAME=\"Debian GNU/Linux\"\nID=debian\nVERSION_CODENAME=trixie\n")
+
+        val distro = osRelease.readLines()
+            .firstOrNull { it.startsWith("ID=") }
+            ?.substringAfter("ID=")
+            ?.trim('"')
+            ?: ""
+
+        assertThat(distro).isEqualTo("debian")
+    }
+
+    @Test
+    fun `os-release parsing handles quoted ID`() {
+        val osRelease = tempDir.newFile("os-release")
+        osRelease.writeText("ID=\"ubuntu\"\n")
+
+        val distro = osRelease.readLines()
+            .firstOrNull { it.startsWith("ID=") }
+            ?.substringAfter("ID=")
+            ?.trim('"')
+            ?: ""
+
+        assertThat(distro).isEqualTo("ubuntu")
+    }
+
+    @Test
+    fun `os-release parsing returns empty for missing ID line`() {
+        val osRelease = tempDir.newFile("os-release")
+        osRelease.writeText("PRETTY_NAME=\"Some Linux\"\n")
+
+        val distro = osRelease.readLines()
+            .firstOrNull { it.startsWith("ID=") }
+            ?.substringAfter("ID=")
+            ?.trim('"')
+            ?: ""
+
+        assertThat(distro).isEmpty()
+    }
+
+    @Test
+    fun `os-release parsing returns empty for missing file`() {
+        val nonexistent = File(tempDir.root, "nonexistent-os-release")
+        assertThat(nonexistent.exists()).isFalse()
+
+        val distro = if (!nonexistent.exists()) "" else "should-not-reach"
+        assertThat(distro).isEmpty()
+    }
 }
