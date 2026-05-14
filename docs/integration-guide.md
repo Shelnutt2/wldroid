@@ -4,27 +4,45 @@ This guide explains how to consume WLDroid as a library in your Android applicat
 
 ## Gradle Dependency Setup
 
-### Option 1: Full Stack (Recommended)
+### Repository Setup
 
-Include all modules via the `:ui` module, which transitively pulls in all library modules:
+WLDroid artifacts are published to GitHub Packages. Add the repository to your `settings.gradle.kts`:
 
 ```kotlin
-// settings.gradle.kts — include WLDroid as a composite build or git submodule
-includeBuild("path/to/wldroid") {
-    dependencySubstitution {
-        substitute(module("nu.shell.wldroid:ui")).using(project(":ui"))
-        substitute(module("nu.shell.wldroid:compositor")).using(project(":compositor"))
-        substitute(module("nu.shell.wldroid:proot")).using(project(":proot"))
-        substitute(module("nu.shell.wldroid:virgl")).using(project(":virgl"))
-        substitute(module("nu.shell.wldroid:shims")).using(project(":shims"))
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = "WLDroid"
+            url = uri("https://maven.pkg.github.com/Shelnutt2/wldroid")
+            credentials {
+                username = providers.gradleProperty("gpr.user").orNull
+                    ?: System.getenv("GITHUB_ACTOR")
+                password = providers.gradleProperty("gpr.key").orNull
+                    ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
 }
 ```
 
+> **Note:** GitHub Packages requires authentication even for public packages. You'll need a GitHub personal access token (classic) with `read:packages` scope. Set it in `~/.gradle/gradle.properties`:
+> ```properties
+> gpr.user=YOUR_GITHUB_USERNAME
+> gpr.key=YOUR_GITHUB_TOKEN
+> ```
+> In CI environments, use the `GITHUB_ACTOR` and `GITHUB_TOKEN` environment variables instead.
+
+### Option 1: Full Stack (Recommended)
+
+Include the `:ui` module, which transitively pulls in all library modules:
+
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("nu.shell.wldroid:ui")
+    implementation("nu.shell.wldroid:wldroid-ui:<version>")
 }
 ```
 
@@ -35,34 +53,40 @@ Pick only what you need:
 ```kotlin
 dependencies {
     // Core compositor only (no proot, no GPU management)
-    implementation("nu.shell.wldroid:compositor")
+    implementation("nu.shell.wldroid:wldroid-compositor:<version>")
 
     // Add environment management
-    implementation("nu.shell.wldroid:proot")
+    implementation("nu.shell.wldroid:wldroid-proot:<version>")
 
     // Add GPU detection and VirGL server
-    implementation("nu.shell.wldroid:virgl")
+    implementation("nu.shell.wldroid:wldroid-virgl:<version>")
 
     // Add shim libraries for Linux graphics bridging
-    implementation("nu.shell.wldroid:shims")
+    implementation("nu.shell.wldroid:wldroid-shims:<version>")
 }
 ```
 
-### Option 3: AAR Artifacts
+### Option 3: Source Dependency
 
-If publishing AARs, consume them from a local Maven repository:
+If you prefer to build from source, include WLDroid as a composite build or git submodule:
 
 ```kotlin
-repositories {
-    maven { url = uri("path/to/wldroid/build/repo") }
+// settings.gradle.kts — include WLDroid as a composite build or git submodule
+includeBuild("path/to/wldroid") {
+    dependencySubstitution {
+        substitute(module("nu.shell.wldroid:wldroid-ui")).using(project(":ui"))
+        substitute(module("nu.shell.wldroid:wldroid-compositor")).using(project(":compositor"))
+        substitute(module("nu.shell.wldroid:wldroid-proot")).using(project(":proot"))
+        substitute(module("nu.shell.wldroid:wldroid-virgl")).using(project(":virgl"))
+        substitute(module("nu.shell.wldroid:wldroid-shims")).using(project(":shims"))
+    }
 }
+```
 
+```kotlin
+// app/build.gradle.kts
 dependencies {
-    implementation("nu.shell.wldroid:compositor:0.1.0")
-    implementation("nu.shell.wldroid:proot:0.1.0")
-    implementation("nu.shell.wldroid:virgl:0.1.0")
-    implementation("nu.shell.wldroid:shims:0.1.0")
-    implementation("nu.shell.wldroid:ui:0.1.0")
+    implementation("nu.shell.wldroid:wldroid-ui")
 }
 ```
 
