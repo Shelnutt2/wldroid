@@ -236,7 +236,7 @@ The `:testapp` module provides interactive testing screens:
 
 ```bash
 ./gradlew :testapp:installDebug
-adb shell am start -n nu.shell.wldroid.testapp/.TestAppActivity
+adb shell am start -n nu.shel.wldroid.testapp/.TestAppActivity
 ```
 
 ## Common Development Tasks

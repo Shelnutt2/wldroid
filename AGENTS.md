@@ -27,7 +27,7 @@ wldroid/
 ```
 
 ## Namespace
-`nu.shell.wldroid.*` — sub-packages: `.compositor`, `.proot`, `.virgl`, `.shims`, `.ui`, `.testapp`
+`nu.shel.wldroid.*` — sub-packages: `.compositor`, `.proot`, `.virgl`, `.shims`, `.ui`, `.testapp`
 
 ## Module Dependency Graph
 ```

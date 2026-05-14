@@ -21,7 +21,7 @@ dependencyResolutionManagement {
         maven {
             // Path to extracted wldroid-maven-repo.zip from the GitHub Release
             url = uri("/path/to/wldroid-maven")
-            content { includeGroup("nu.shell.wldroid") }
+            content { includeGroup("nu.shel.wldroid") }
         }
     }
 }
@@ -63,7 +63,7 @@ Include the `:ui` module, which transitively pulls in all library modules:
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("nu.shell.wldroid:wldroid-ui:<version>")
+    implementation("nu.shel.wldroid:wldroid-ui:<version>")
 }
 ```
 
@@ -74,16 +74,16 @@ Pick only what you need:
 ```kotlin
 dependencies {
     // Core compositor only (no proot, no GPU management)
-    implementation("nu.shell.wldroid:wldroid-compositor:<version>")
+    implementation("nu.shel.wldroid:wldroid-compositor:<version>")
 
     // Add environment management
-    implementation("nu.shell.wldroid:wldroid-proot:<version>")
+    implementation("nu.shel.wldroid:wldroid-proot:<version>")
 
     // Add GPU detection and VirGL server
-    implementation("nu.shell.wldroid:wldroid-virgl:<version>")
+    implementation("nu.shel.wldroid:wldroid-virgl:<version>")
 
     // Add shim libraries for Linux graphics bridging
-    implementation("nu.shell.wldroid:wldroid-shims:<version>")
+    implementation("nu.shel.wldroid:wldroid-shims:<version>")
 }
 ```
 
@@ -95,11 +95,11 @@ If you prefer to build from source, include WLDroid as a composite build or git 
 // settings.gradle.kts — include WLDroid as a composite build or git submodule
 includeBuild("path/to/wldroid") {
     dependencySubstitution {
-        substitute(module("nu.shell.wldroid:wldroid-ui")).using(project(":ui"))
-        substitute(module("nu.shell.wldroid:wldroid-compositor")).using(project(":compositor"))
-        substitute(module("nu.shell.wldroid:wldroid-proot")).using(project(":proot"))
-        substitute(module("nu.shell.wldroid:wldroid-virgl")).using(project(":virgl"))
-        substitute(module("nu.shell.wldroid:wldroid-shims")).using(project(":shims"))
+        substitute(module("nu.shel.wldroid:wldroid-ui")).using(project(":ui"))
+        substitute(module("nu.shel.wldroid:wldroid-compositor")).using(project(":compositor"))
+        substitute(module("nu.shel.wldroid:wldroid-proot")).using(project(":proot"))
+        substitute(module("nu.shel.wldroid:wldroid-virgl")).using(project(":virgl"))
+        substitute(module("nu.shel.wldroid:wldroid-shims")).using(project(":shims"))
     }
 }
 ```
@@ -107,7 +107,7 @@ includeBuild("path/to/wldroid") {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("nu.shell.wldroid:wldroid-ui")
+    implementation("nu.shel.wldroid:wldroid-ui")
 }
 ```
 
@@ -134,7 +134,7 @@ Add to your `AndroidManifest.xml`:
 The simplest integration — embed a Wayland compositor surface that Linux applications can connect to:
 
 ```kotlin
-import nu.shell.wldroid.compositor.*
+import nu.shel.wldroid.compositor.*
 
 class MyActivity : ComponentActivity() {
     private val server = CompositorServer()
@@ -188,8 +188,8 @@ class MyActivity : ComponentActivity() {
 Use the pre-built `CompositorSurface` Compose component:
 
 ```kotlin
-import nu.shell.wldroid.ui.CompositorSurface
-import nu.shell.wldroid.compositor.*
+import nu.shel.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.compositor.*
 
 @Composable
 fun WaylandScreen() {
@@ -336,17 +336,17 @@ WLDroid uses JNI and reflection in specific areas. Add these rules to your `prog
 
 ```proguard
 # Keep JNI bridge class — native methods registered via RegisterNatives
--keep class nu.shell.wldroid.compositor.CompositorServer { *; }
+-keep class nu.shel.wldroid.compositor.CompositorServer { *; }
 
 # Keep all enum classes (used in StateFlow)
--keepclassmembers enum nu.shell.wldroid.** {
+-keepclassmembers enum nu.shel.wldroid.** {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
 
 # Keep data classes used in DataStore serialization
--keep class nu.shell.wldroid.proot.RootfsEnvironment { *; }
--keep class nu.shell.wldroid.proot.RootfsStatus { *; }
+-keep class nu.shel.wldroid.proot.RootfsEnvironment { *; }
+-keep class nu.shel.wldroid.proot.RootfsStatus { *; }
 ```
 
 ## Android SDK Requirements

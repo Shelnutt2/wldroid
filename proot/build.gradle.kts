@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.proot"
+    namespace = "nu.shel.wldroid.proot"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

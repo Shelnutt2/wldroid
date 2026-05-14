@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.testapp"
+    namespace = "nu.shel.wldroid.testapp"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "nu.shell.wldroid.testapp"
+        applicationId = "nu.shel.wldroid.testapp"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         val parts = rootProject.version.toString().split("-")[0].split(".").mapNotNull { it.toIntOrNull() }

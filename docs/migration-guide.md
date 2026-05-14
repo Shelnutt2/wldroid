@@ -46,13 +46,13 @@ This guide walks through migrating [coder-mobile-android](https://github.com/cod
 // app/build.gradle.kts
 dependencies {
     // Full stack — :ui transitively includes all modules
-    implementation("nu.shell.wldroid:ui:1.0.0")
+    implementation("nu.shel.wldroid:ui:1.0.0")
 
     // Or pick individual modules:
-    // implementation("nu.shell.wldroid:compositor:1.0.0")
-    // implementation("nu.shell.wldroid:proot:1.0.0")
-    // implementation("nu.shell.wldroid:virgl:1.0.0")
-    // implementation("nu.shell.wldroid:shims:1.0.0")
+    // implementation("nu.shel.wldroid:compositor:1.0.0")
+    // implementation("nu.shel.wldroid:proot:1.0.0")
+    // implementation("nu.shel.wldroid:virgl:1.0.0")
+    // implementation("nu.shel.wldroid:shims:1.0.0")
 }
 ```
 
@@ -62,11 +62,11 @@ dependencies {
 // settings.gradle.kts
 includeBuild("path/to/wldroid") {
     dependencySubstitution {
-        substitute(module("nu.shell.wldroid:ui")).using(project(":ui"))
-        substitute(module("nu.shell.wldroid:compositor")).using(project(":compositor"))
-        substitute(module("nu.shell.wldroid:proot")).using(project(":proot"))
-        substitute(module("nu.shell.wldroid:virgl")).using(project(":virgl"))
-        substitute(module("nu.shell.wldroid:shims")).using(project(":shims"))
+        substitute(module("nu.shel.wldroid:ui")).using(project(":ui"))
+        substitute(module("nu.shel.wldroid:compositor")).using(project(":compositor"))
+        substitute(module("nu.shel.wldroid:proot")).using(project(":proot"))
+        substitute(module("nu.shel.wldroid:virgl")).using(project(":virgl"))
+        substitute(module("nu.shel.wldroid:shims")).using(project(":shims"))
     }
 }
 ```
@@ -74,7 +74,7 @@ includeBuild("path/to/wldroid") {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("nu.shell.wldroid:ui")
+    implementation("nu.shel.wldroid:ui")
 }
 ```
 
@@ -96,10 +96,10 @@ compositor/subprojects/              # All .wrap files for native dependencies
 ### Kotlin Source Files (in `app/src/main/java/com/coder/android/`)
 
 ```
-data/proot/RootfsManager.kt         # → nu.shell.wldroid.proot.RootfsManager
-data/proot/VirglServerManager.kt    # → nu.shell.wldroid.virgl.VirglServerManager
-data/proot/GpuCapabilityDetector.kt # → nu.shell.wldroid.virgl.GpuCapabilityDetector
-data/proot/GpuModeStore.kt          # → nu.shell.wldroid.virgl.GpuModeStore
+data/proot/RootfsManager.kt         # → nu.shel.wldroid.proot.RootfsManager
+data/proot/VirglServerManager.kt    # → nu.shel.wldroid.virgl.VirglServerManager
+data/proot/GpuCapabilityDetector.kt # → nu.shel.wldroid.virgl.GpuCapabilityDetector
+data/proot/GpuModeStore.kt          # → nu.shel.wldroid.virgl.GpuModeStore
 ```
 
 ### Gradle Build Tasks
@@ -184,9 +184,9 @@ class CompositorActivity : ComponentActivity() {
 
 ```kotlin
 // CompositorActivity.kt — AFTER
-import nu.shell.wldroid.compositor.CompositorConfig
-import nu.shell.wldroid.compositor.CompositorState
-import nu.shell.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.compositor.CompositorConfig
+import nu.shel.wldroid.compositor.CompositorState
+import nu.shel.wldroid.ui.CompositorSurface
 
 class CompositorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -249,10 +249,10 @@ class DesktopAppLauncher @Inject constructor(
 
 ```kotlin
 // DesktopAppLauncher.kt — AFTER
-import nu.shell.wldroid.proot.EnvironmentRegistry
-import nu.shell.wldroid.proot.ProotConfig
-import nu.shell.wldroid.proot.ProotExecutor
-import nu.shell.wldroid.proot.RootfsEnvironment
+import nu.shel.wldroid.proot.EnvironmentRegistry
+import nu.shel.wldroid.proot.ProotConfig
+import nu.shel.wldroid.proot.ProotExecutor
+import nu.shel.wldroid.proot.RootfsEnvironment
 
 class DesktopAppLauncher @Inject constructor(
     private val environmentRegistry: EnvironmentRegistry,
@@ -319,10 +319,10 @@ class GpuManager @Inject constructor(
 
 ```kotlin
 // GpuManager.kt — AFTER
-import nu.shell.wldroid.virgl.GpuMode
-import nu.shell.wldroid.virgl.VirglConfig
-import nu.shell.wldroid.virgl.VirglSession
-import nu.shell.wldroid.virgl.VirglState
+import nu.shel.wldroid.virgl.GpuMode
+import nu.shel.wldroid.virgl.VirglConfig
+import nu.shel.wldroid.virgl.VirglSession
+import nu.shel.wldroid.virgl.VirglState
 
 class GpuManager @Inject constructor() {
     private var session: VirglSession? = null
@@ -397,13 +397,13 @@ skipShims=false
 ```kotlin
 dependencies {
     // WLDroid — full stack
-    implementation("nu.shell.wldroid:ui:1.0.0")
+    implementation("nu.shel.wldroid:ui:1.0.0")
 
     // Or individual modules if you don't need the UI layer:
-    // implementation("nu.shell.wldroid:compositor:1.0.0")
-    // implementation("nu.shell.wldroid:proot:1.0.0")
-    // implementation("nu.shell.wldroid:virgl:1.0.0")
-    // implementation("nu.shell.wldroid:shims:1.0.0")
+    // implementation("nu.shel.wldroid:compositor:1.0.0")
+    // implementation("nu.shel.wldroid:proot:1.0.0")
+    // implementation("nu.shel.wldroid:virgl:1.0.0")
+    // implementation("nu.shel.wldroid:shims:1.0.0")
 
     // Your existing app dependencies remain unchanged
     implementation(libs.coder.sdk)
@@ -470,32 +470,32 @@ Complete mapping from coder-mobile-android classes to WLDroid equivalents:
 
 | Old (coder-mobile-android) | New (WLDroid) | Package | Notes |
 |---------------------------|---------------|---------|-------|
-| `CompositorActivity` JNI calls (`nativeStartCompositor`, `nativeSendTouchEvent`, `nativeStopCompositor`) | `CompositorServer` / `CompositorSession` | `nu.shell.wldroid.compositor` | JNI refactored to `RegisterNatives` in `JNI_OnLoad`; no manual `System.loadLibrary()` needed |
-| `RootfsManager` | `RootfsManager` + `EnvironmentRegistry` | `nu.shell.wldroid.proot` | Split into rootfs operations (`RootfsManager`) and environment lifecycle (`EnvironmentRegistry`) |
-| `VirglServerManager` | `VirglServerManager` + `VirglSession` | `nu.shell.wldroid.virgl` | Added `VirglSession` as high-level lifecycle wrapper around `VirglServerManager` |
-| `GpuCapabilityDetector` | `GpuCapabilityDetector` | `nu.shell.wldroid.virgl` | Same detection logic, new package; now returns `GpuMode` enum |
-| `GpuModeStore` | `GpuModeStore` | `nu.shell.wldroid.virgl` | Same DataStore-based persistence, new package |
-| Inline `SurfaceView` + `SurfaceHolder.Callback` | `CompositorSurface` | `nu.shell.wldroid.ui` | Jetpack Compose component; handles surface lifecycle, input, and state |
-| Inline setup/loading UI | `SetupOverlay` | `nu.shell.wldroid.ui` | Reusable Composable for download/extraction progress |
-| Inline GPU mode picker | `GpuModeSelector` | `nu.shell.wldroid.ui` | Composable dropdown with all 5 GPU modes |
-| Inline environment picker | `EnvironmentPicker` | `nu.shell.wldroid.ui` | Composable list with create/delete actions |
-| *(none)* | `EnvironmentCreator` | `nu.shell.wldroid.ui` | New Composable for guided environment creation |
-| Inline shim extraction logic | `ShimExtractor` | `nu.shell.wldroid.shims` | Dedicated class for extracting shim `.so` files from assets |
-| Inline `CompositorConfig` construction | `CompositorConfig` | `nu.shell.wldroid.compositor` | Data class with validation |
-| *(none)* | `CompositorInput` | `nu.shell.wldroid.compositor` | Dedicated input routing (touch, keyboard, pointer) |
-| *(none)* | `CompositorState` | `nu.shell.wldroid.compositor` | Sealed class for lifecycle states (`Idle`, `Starting`, `Running`, `Error`, `Stopped`) |
-| *(none)* | `VirglConfig` | `nu.shell.wldroid.virgl` | Structured config (GPU mode, socket path, flags) |
-| *(none)* | `VirglState` | `nu.shell.wldroid.virgl` | Sealed class for VirGL lifecycle states |
-| *(none)* | `ProotConfig` | `nu.shell.wldroid.proot` | Structured config (command, env vars, bind mounts) |
-| *(none)* | `ProotDnsManager` | `nu.shell.wldroid.proot` | Automatic DNS configuration for proot environments |
-| *(none)* | `RootfsDownloader` | `nu.shell.wldroid.proot` | Resumable rootfs downloads with progress reporting |
-| *(none)* | `RootfsExtractor` | `nu.shell.wldroid.proot` | Tar extraction with progress reporting |
-| *(none)* | `RootfsStore` | `nu.shell.wldroid.proot` | DataStore-based rootfs metadata persistence |
-| *(none)* | `ShimConfig` | `nu.shell.wldroid.shims` | Shim extraction configuration |
+| `CompositorActivity` JNI calls (`nativeStartCompositor`, `nativeSendTouchEvent`, `nativeStopCompositor`) | `CompositorServer` / `CompositorSession` | `nu.shel.wldroid.compositor` | JNI refactored to `RegisterNatives` in `JNI_OnLoad`; no manual `System.loadLibrary()` needed |
+| `RootfsManager` | `RootfsManager` + `EnvironmentRegistry` | `nu.shel.wldroid.proot` | Split into rootfs operations (`RootfsManager`) and environment lifecycle (`EnvironmentRegistry`) |
+| `VirglServerManager` | `VirglServerManager` + `VirglSession` | `nu.shel.wldroid.virgl` | Added `VirglSession` as high-level lifecycle wrapper around `VirglServerManager` |
+| `GpuCapabilityDetector` | `GpuCapabilityDetector` | `nu.shel.wldroid.virgl` | Same detection logic, new package; now returns `GpuMode` enum |
+| `GpuModeStore` | `GpuModeStore` | `nu.shel.wldroid.virgl` | Same DataStore-based persistence, new package |
+| Inline `SurfaceView` + `SurfaceHolder.Callback` | `CompositorSurface` | `nu.shel.wldroid.ui` | Jetpack Compose component; handles surface lifecycle, input, and state |
+| Inline setup/loading UI | `SetupOverlay` | `nu.shel.wldroid.ui` | Reusable Composable for download/extraction progress |
+| Inline GPU mode picker | `GpuModeSelector` | `nu.shel.wldroid.ui` | Composable dropdown with all 5 GPU modes |
+| Inline environment picker | `EnvironmentPicker` | `nu.shel.wldroid.ui` | Composable list with create/delete actions |
+| *(none)* | `EnvironmentCreator` | `nu.shel.wldroid.ui` | New Composable for guided environment creation |
+| Inline shim extraction logic | `ShimExtractor` | `nu.shel.wldroid.shims` | Dedicated class for extracting shim `.so` files from assets |
+| Inline `CompositorConfig` construction | `CompositorConfig` | `nu.shel.wldroid.compositor` | Data class with validation |
+| *(none)* | `CompositorInput` | `nu.shel.wldroid.compositor` | Dedicated input routing (touch, keyboard, pointer) |
+| *(none)* | `CompositorState` | `nu.shel.wldroid.compositor` | Sealed class for lifecycle states (`Idle`, `Starting`, `Running`, `Error`, `Stopped`) |
+| *(none)* | `VirglConfig` | `nu.shel.wldroid.virgl` | Structured config (GPU mode, socket path, flags) |
+| *(none)* | `VirglState` | `nu.shel.wldroid.virgl` | Sealed class for VirGL lifecycle states |
+| *(none)* | `ProotConfig` | `nu.shel.wldroid.proot` | Structured config (command, env vars, bind mounts) |
+| *(none)* | `ProotDnsManager` | `nu.shel.wldroid.proot` | Automatic DNS configuration for proot environments |
+| *(none)* | `RootfsDownloader` | `nu.shel.wldroid.proot` | Resumable rootfs downloads with progress reporting |
+| *(none)* | `RootfsExtractor` | `nu.shel.wldroid.proot` | Tar extraction with progress reporting |
+| *(none)* | `RootfsStore` | `nu.shel.wldroid.proot` | DataStore-based rootfs metadata persistence |
+| *(none)* | `ShimConfig` | `nu.shel.wldroid.shims` | Shim extraction configuration |
 
 ## Namespace Migration
 
-All WLDroid classes live under the `nu.shell.wldroid` namespace. Update your imports:
+All WLDroid classes live under the `nu.shel.wldroid` namespace. Update your imports:
 
 ```kotlin
 // BEFORE
@@ -505,17 +505,17 @@ import com.coder.android.data.proot.GpuModeStore
 import com.coder.android.data.proot.VirglServerManager
 
 // AFTER
-import nu.shell.wldroid.proot.RootfsManager
-import nu.shell.wldroid.proot.EnvironmentRegistry
-import nu.shell.wldroid.proot.ProotExecutor
-import nu.shell.wldroid.virgl.GpuCapabilityDetector
-import nu.shell.wldroid.virgl.GpuModeStore
-import nu.shell.wldroid.virgl.VirglServerManager
-import nu.shell.wldroid.virgl.VirglSession
-import nu.shell.wldroid.compositor.CompositorConfig
-import nu.shell.wldroid.compositor.CompositorServer
-import nu.shell.wldroid.compositor.CompositorSession
-import nu.shell.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.proot.RootfsManager
+import nu.shel.wldroid.proot.EnvironmentRegistry
+import nu.shel.wldroid.proot.ProotExecutor
+import nu.shel.wldroid.virgl.GpuCapabilityDetector
+import nu.shel.wldroid.virgl.GpuModeStore
+import nu.shel.wldroid.virgl.VirglServerManager
+import nu.shel.wldroid.virgl.VirglSession
+import nu.shel.wldroid.compositor.CompositorConfig
+import nu.shel.wldroid.compositor.CompositorServer
+import nu.shel.wldroid.compositor.CompositorSession
+import nu.shel.wldroid.ui.CompositorSurface
 ```
 
 ---

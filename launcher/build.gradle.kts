@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.launcher"
+    namespace = "nu.shel.wldroid.launcher"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
