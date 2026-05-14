@@ -44,6 +44,10 @@ android {
     packaging {
         jniLibs.useLegacyPackaging = true
     }
+
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    }
 }
 
 dependencies {
@@ -80,5 +84,6 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
 

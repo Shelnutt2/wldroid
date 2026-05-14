@@ -2,9 +2,12 @@ package nu.shel.wldroid.virgl
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
@@ -14,6 +17,9 @@ import org.junit.runners.JUnit4
  */
 @RunWith(JUnit4::class)
 class GpuModeStoreTest {
+
+    @get:Rule
+    val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     @Test
     fun storeAndRetrieveGpuMode() = runTest {

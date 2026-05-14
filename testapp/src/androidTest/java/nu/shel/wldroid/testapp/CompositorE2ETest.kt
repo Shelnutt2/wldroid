@@ -6,9 +6,12 @@ import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorSession
 import nu.shel.wldroid.compositor.CompositorState
 import org.junit.Assume.assumeTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.TimeUnit
 
 /**
  * End-to-end test for compositor startup.
@@ -20,6 +23,8 @@ import org.junit.runners.JUnit4
  */
 @RunWith(JUnit4::class)
 class CompositorE2ETest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     companion object {
         /** True when the native compositor .so is present and loadable. */

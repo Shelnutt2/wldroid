@@ -4,10 +4,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [ProotDnsManager] — real DNS resolution and
@@ -15,6 +18,8 @@ import java.io.File
  */
 @RunWith(JUnit4::class)
 class ProotDnsManagerTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     private lateinit var manager: ProotDnsManager
     private lateinit var testRootfsDir: File

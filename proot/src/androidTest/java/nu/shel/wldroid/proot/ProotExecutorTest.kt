@@ -2,16 +2,21 @@ package nu.shel.wldroid.proot
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Instrumented tests for [ProotExecutor] command building with real device paths.
  */
 @RunWith(JUnit4::class)
 class ProotExecutorTest {
+
+    @get:Rule val globalTimeout: Timeout = Timeout(60, TimeUnit.SECONDS)
 
     @Test
     fun buildCommandProducesValidProcessBuilder() {
