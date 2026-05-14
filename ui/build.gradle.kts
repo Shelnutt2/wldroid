@@ -33,10 +33,10 @@ android {
 }
 
 dependencies {
-    implementation(project(":compositor"))
-    implementation(project(":proot"))
-    implementation(project(":virgl"))
-    implementation(project(":shims"))
+    api(project(":compositor"))
+    api(project(":proot"))
+    api(project(":virgl"))
+    api(project(":shims"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
@@ -49,7 +49,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.ktx)
 
-    implementation(libs.coroutines.core)
+    api(libs.coroutines.core)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)

@@ -37,6 +37,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+          clean: true
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -68,12 +69,27 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           bash scripts/build-all-native.sh
+      - name: Verify clean git version
+        run: |
+          VERSION=$(./gradlew -q printVersion 2>/dev/null || true)
+          echo "Resolved version: $VERSION"
+          # Exclude build outputs and Gradle caches from git status.
+          # Only fail if tracked files are modified.
+          if git diff --name-only | grep -v '^.gradle' | grep -q .; then
+            echo "ERROR: Tracked files are dirty. This will produce a '-dirty' version suffix."
+            git diff --name-only
+            exit 1
+          fi
       - name: Build release AARs
         run: ./gradlew assembleRelease -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Publish to GitHub Packages
         run: ./gradlew publish -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to filesystem Maven repo
+        run: |
+          ./gradlew publishAllPublicationsToFileSystemMavenRepoRepository \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Collect AARs
         run: |
           mkdir -p release-artifacts
@@ -92,10 +108,23 @@ jobs:
             echo "ERROR: Missing required AARs: ${missing[*]}"
             exit 1
           fi
-      - name: Upload AAR artifacts
+      - name: Package Maven repo zip
+        run: |
+          cd build/maven-repo
+          zip -r ../../release-artifacts/wldroid-maven-repo.zip .
+          cd ../..
+          echo "Maven repo contents:"
+          find build/maven-repo -type f | sort
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          sha256sum *.aar wldroid-maven-repo.zip > checksums-sha256.txt
+          echo "Checksums:"
+          cat checksums-sha256.txt
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-aars
+          name: release-artifacts
           path: release-artifacts/
 
   create-release:
@@ -103,15 +132,18 @@ jobs:
     needs: [build-and-publish]
     steps:
       - uses: actions/checkout@v4
-      - name: Download AARs
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-aars
+          name: release-artifacts
           path: release-artifacts/
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: release-artifacts/*.aar
+          files: |
+            release-artifacts/*.aar
+            release-artifacts/wldroid-maven-repo.zip
+            release-artifacts/checksums-sha256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

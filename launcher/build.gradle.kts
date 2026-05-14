@@ -28,13 +28,13 @@ android {
 }
 
 dependencies {
-    implementation(project(":compositor"))
-    implementation(project(":proot"))
-    implementation(project(":virgl"))
-    implementation(project(":shims"))
-    implementation(libs.coroutines.core)
+    api(project(":compositor"))
+    api(project(":proot"))
+    api(project(":virgl"))
+    api(project(":shims"))
+    api(libs.coroutines.core)
     implementation(libs.coroutines.android)
-    implementation(libs.lifecycle.runtime.ktx)
+    api(libs.lifecycle.runtime.ktx)
     implementation(libs.annotation)
 
     testImplementation(libs.junit)
