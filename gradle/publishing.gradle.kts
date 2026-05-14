@@ -1,27 +1,18 @@
-// Shared Maven Central publishing configuration for WLDroid library modules.
+// Shared GitHub Packages publishing configuration for WLDroid library modules.
 //
 // Each module must set these extras BEFORE applying this script:
 //   extra["publishArtifactId"] = "wldroid-compositor"
 //   extra["publishDescription"] = "Core Wayland compositor for Android"
 
 apply(plugin = "maven-publish")
-apply(plugin = "signing")
 
 val publishArtifactId: String by project.extra
 val publishDescription: String by project.extra
 
-// Read version from catalog
-val wldroidVersion: String = project.rootProject
-    .extensions.getByType<VersionCatalogsExtension>()
-    .named("libs")
-    .findVersion("wldroid")
-    .get()
-    .requiredVersion
-
-version = wldroidVersion
+version = rootProject.version.toString()
 group = "nu.shell.wldroid"
 
-// Empty Javadoc JAR (satisfies Maven Central requirement for Kotlin Android libraries)
+// Empty Javadoc JAR (satisfies repository requirements for Kotlin Android libraries)
 val javadocJar = tasks.register("javadocJar", Jar::class.java) {
     archiveClassifier.set("javadoc")
 }
@@ -34,14 +25,14 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "nu.shell.wldroid"
                 artifactId = publishArtifactId
-                this.version = wldroidVersion
+                this.version = rootProject.version.toString()
 
                 artifact(javadocJar)
 
                 pom {
                     name.set(publishArtifactId)
                     description.set(publishDescription)
-                    url.set("https://github.com/AntonisShelworx/wldroid")
+                    url.set("https://github.com/Shelnutt2/wldroid")
                     licenses {
                         license {
                             name.set("The Apache License, Version 2.0")
@@ -55,9 +46,9 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        connection.set("scm:git:git://github.com/AntonisShelworx/wldroid.git")
-                        developerConnection.set("scm:git:ssh://github.com/AntonisShelworx/wldroid.git")
-                        url.set("https://github.com/AntonisShelworx/wldroid")
+                        connection.set("scm:git:git://github.com/Shelnutt2/wldroid.git")
+                        developerConnection.set("scm:git:ssh://github.com/Shelnutt2/wldroid.git")
+                        url.set("https://github.com/Shelnutt2/wldroid")
                     }
                 }
             }
@@ -65,35 +56,15 @@ afterEvaluate {
 
         repositories {
             maven {
-                name = "sonatype"
-                val isSnapshot = wldroidVersion.endsWith("-SNAPSHOT")
-                url = uri(
-                    if (isSnapshot) "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-                    else "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-                )
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/Shelnutt2/wldroid")
                 credentials {
-                    username = findProperty("ossrhUsername")?.toString()
-                        ?: System.getenv("OSSRH_USERNAME") ?: ""
-                    password = findProperty("ossrhPassword")?.toString()
-                        ?: System.getenv("OSSRH_PASSWORD") ?: ""
+                    username = System.getenv("GITHUB_ACTOR")
+                        ?: findProperty("gpr.user")?.toString() ?: ""
+                    password = System.getenv("GITHUB_TOKEN")
+                        ?: findProperty("gpr.key")?.toString() ?: ""
                 }
             }
         }
     }
-
-    // Signing — only when key is available
-    val signingKey = findProperty("signingKey")?.toString()
-        ?: System.getenv("ORG_GRADLE_PROJECT_signingKey")
-    val signingPassword = findProperty("signingPassword")?.toString()
-        ?: System.getenv("ORG_GRADLE_PROJECT_signingPassword") ?: ""
-    val signingKeyId = findProperty("signingKeyId")?.toString()
-        ?: System.getenv("ORG_GRADLE_PROJECT_signingKeyId")
-
-    if (!signingKey.isNullOrBlank()) {
-        configure<SigningExtension> {
-            useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
-            sign(the<PublishingExtension>().publications)
-        }
-    }
-
 }
