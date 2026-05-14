@@ -12,9 +12,3 @@ val gitVersion: groovy.lang.Closure<String> by extra
 
 // Allow CI to override the version (computed before native builds dirty the tree)
 version = findProperty("overrideVersion")?.toString() ?: gitVersion()
-
-tasks.register("printVersion") {
-    doLast {
-        println(version)
-    }
-}
