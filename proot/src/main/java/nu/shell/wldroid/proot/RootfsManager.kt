@@ -154,7 +154,7 @@ class RootfsManager(
             // 6. Create .l2s directory for proot link2symlink
             File(envDir, ".l2s").mkdirs()
 
-            // 7. Save to store
+            // 7. Save to store and verify persistence
             val env = RootfsEnvironment(
                 id = id,
                 name = name,
@@ -165,6 +165,16 @@ class RootfsManager(
                 status = RootfsStatus.READY,
             )
             rootfsStore.addEnvironment(env)
+
+            // Verify the store write succeeded so downstream callers can
+            // rely on getEnvironments() without fallback reconstruction.
+            val persisted = rootfsStore.getEnvironments().first()
+            if (persisted.none { it.id == id }) {
+                Log.e(TAG, "Store write verification failed: environment '$id' not found after addEnvironment")
+                send(RootfsProgress(RootfsStatus.ERROR))
+                return@channelFlow
+            }
+
             send(RootfsProgress(RootfsStatus.READY))
         }
     }.flowOn(Dispatchers.IO)
@@ -258,6 +268,93 @@ class RootfsManager(
         // Add passwordless sudo for user
         sudoersDir.mkdirs()
         File(sudoersDir, "user").writeText("user ALL=(ALL) NOPASSWD:ALL\n")
+    }
+
+    /**
+     * Finds rootfs directories on disk that are not tracked in the store.
+     *
+     * An "orphaned" environment is a directory under [rootfsBaseDir] that
+     * contains `etc/os-release` (indicating a valid rootfs extraction) but
+     * has no corresponding entry in [RootfsStore]. This can happen if the
+     * app crashes between rootfs extraction and the store write, or if
+     * store data is cleared/corrupted.
+     *
+     * @return List of environment IDs (directory names) that exist on disk
+     *         but are missing from the store
+     */
+    suspend fun findOrphanedEnvironments(): List<String> {
+        if (!rootfsBaseDir.exists()) return emptyList()
+
+        val registeredIds = rootfsStore.getEnvironments().first().map { it.id }.toSet()
+
+        return rootfsBaseDir.listFiles()
+            ?.filter { dir ->
+                dir.isDirectory &&
+                    File(dir, "etc/os-release").exists() &&
+                    dir.name !in registeredIds
+            }
+            ?.map { it.name }
+            ?: emptyList()
+    }
+
+    /**
+     * Adopts orphaned rootfs directories by registering them in the store.
+     *
+     * For each orphaned directory found by [findOrphanedEnvironments], creates
+     * a [RootfsEnvironment] record with metadata inferred from the filesystem
+     * and adds it to the store. The adopted environments use the directory name
+     * as both `id` and `name`, and set `distro` by reading `etc/os-release`.
+     *
+     * This is the intentional recovery path for rootfs directories that exist
+     * on disk but are missing from the registry. Downstream apps should call
+     * this method at startup instead of manually reconstructing environment
+     * records.
+     *
+     * @return List of newly adopted [RootfsEnvironment] records
+     */
+    suspend fun adoptOrphanedEnvironments(): List<RootfsEnvironment> {
+        val orphanIds = findOrphanedEnvironments()
+        if (orphanIds.isEmpty()) return emptyList()
+
+        val adopted = mutableListOf<RootfsEnvironment>()
+        for (id in orphanIds) {
+            val envDir = File(rootfsBaseDir, id)
+            val distro = readDistroFromOsRelease(File(envDir, "etc/os-release"))
+
+            val env = RootfsEnvironment(
+                id = id,
+                name = id,
+                rootfsPath = envDir.absolutePath,
+                distro = distro,
+                createdAt = envDir.lastModified(),
+                sizeBytes = getDiskUsage(id),
+                status = RootfsStatus.READY,
+            )
+            rootfsStore.addEnvironment(env)
+            adopted.add(env)
+            Log.i(TAG, "Adopted orphaned environment: id=$id, distro=$distro")
+        }
+        return adopted
+    }
+
+    /**
+     * Reads the distro identifier from an os-release file.
+     *
+     * Parses the `ID=` line from the os-release file to determine the
+     * distribution name. Returns an empty string if the file cannot be
+     * read or the ID line is not found.
+     */
+    private fun readDistroFromOsRelease(osReleaseFile: File): String {
+        if (!osReleaseFile.exists()) return ""
+        return try {
+            osReleaseFile.readLines()
+                .firstOrNull { it.startsWith("ID=") }
+                ?.substringAfter("ID=")
+                ?.trim('"')
+                ?: ""
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     companion object {
