@@ -41,6 +41,33 @@ class XWaylandManager(
     }
 
     /**
+     * Prepare XWayland for use in a single call.
+     *
+     * This is the recommended entry point for downstream apps. It performs both
+     * the wrapper-script extraction and the `/tmp/.X11-unix` directory setup,
+     * returning an [XWaylandReadyResult] whose [XWaylandReadyResult.wrapperScriptPath]
+     * can be passed directly to
+     * [nu.shell.wldroid.compositor.CompositorConfig.xwaylandBinaryPath].
+     *
+     * Calling this method is equivalent to:
+     * ```
+     * extractWrapperScript(environment)
+     * ensureTmpDirReady(tempDir)
+     * ```
+     *
+     * @param environment The rootfs environment containing Xwayland
+     * @param tempDir The host path that maps to proot's /tmp
+     * @return A result containing the ready-to-use wrapper script path
+     */
+    fun prepare(environment: RootfsEnvironment, tempDir: String): XWaylandReadyResult {
+        val scriptPath = extractWrapperScript(environment)
+        ensureTmpDirReady(tempDir)
+        return XWaylandReadyResult(
+            wrapperScriptPath = scriptPath,
+        )
+    }
+
+    /**
      * Build the shell script content for the XWayland wrapper.
      *
      * The script:

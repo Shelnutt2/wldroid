@@ -67,4 +67,42 @@ class CompositorConfigTest {
         assertFalse(config.xwaylandEnabled)
         assertEquals("/cache/xwayland-wrapper.sh", config.xwaylandBinaryPath)
     }
+
+    @Test
+    fun `validate passes for disabled xwayland`() {
+        val config = CompositorConfig(xwaylandEnabled = false)
+        // Should not throw
+        config.validate()
+    }
+
+    @Test
+    fun `validate passes for empty binary path`() {
+        val config = CompositorConfig(xwaylandEnabled = true, xwaylandBinaryPath = "")
+        // Should not throw (empty path means wlroots uses default search)
+        config.validate()
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun `validate fails for non-existent binary path`() {
+        val config = CompositorConfig(
+            xwaylandEnabled = true,
+            xwaylandBinaryPath = "/nonexistent/path/xwayland-wrapper.sh",
+        )
+        config.validate()
+    }
+
+    @Test
+    fun `validate passes for existing binary path`() {
+        val tempFile = java.io.File.createTempFile("xwayland-test", ".sh")
+        try {
+            val config = CompositorConfig(
+                xwaylandEnabled = true,
+                xwaylandBinaryPath = tempFile.absolutePath,
+            )
+            // Should not throw
+            config.validate()
+        } finally {
+            tempFile.delete()
+        }
+    }
 }

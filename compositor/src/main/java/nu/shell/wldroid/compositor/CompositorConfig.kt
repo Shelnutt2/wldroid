@@ -1,5 +1,7 @@
 package nu.shell.wldroid.compositor
 
+import java.io.File
+
 data class CompositorConfig(
     val cacheDir: String = "",
     val xkbBasePath: String = "",
@@ -15,6 +17,25 @@ data class CompositorConfig(
     /** Path for the AHB registry Unix socket used for GPU buffer sharing with VirGL. */
     val ahbRegistrySocketPath: String = "",
 ) {
+    /**
+     * Validate that this config is internally consistent.
+     *
+     * @throws IllegalStateException if [xwaylandEnabled] is true and
+     *     [xwaylandBinaryPath] is non-empty but does not point to an existing file.
+     *     Use [nu.shell.wldroid.launcher.CompositorConfigFactory.createWithXWayland]
+     *     or call `XWaylandManager.prepare()` before constructing the config to
+     *     avoid this error.
+     */
+    fun validate() {
+        if (xwaylandEnabled && xwaylandBinaryPath.isNotEmpty()) {
+            check(File(xwaylandBinaryPath).exists()) {
+                "XWayland wrapper script not found at $xwaylandBinaryPath. " +
+                    "Use CompositorConfigFactory.createWithXWayland() or call " +
+                    "XWaylandManager.prepare() before constructing CompositorConfig."
+            }
+        }
+    }
+
     companion object {
         fun default() = CompositorConfig()
     }

@@ -74,9 +74,15 @@ data class CompositorConfig(
     val cacheDir: String = "",              // Cache directory for temp files
     val xkbBasePath: String = "",           // XKB keyboard layout base path
     val xwaylandEnabled: Boolean = true,    // Enable X11 compatibility
+    val xwaylandBinaryPath: String = "",    // Path to XWayland wrapper script (from XWaylandManager)
     val gpuMode: String = "AUTO",           // GPU mode (AUTO, SOFTWARE, VIRGL_GLES, etc.)
     val testClientEnabled: Boolean = false,  // Enable built-in test pattern client
 ) {
+    // Validates that all required paths exist and settings are consistent.
+    // Throws IllegalStateException if xwaylandEnabled is true but
+    // xwaylandBinaryPath is empty or references a non-existent file.
+    fun validate()
+
     companion object {
         fun default(): CompositorConfig
     }
@@ -559,6 +565,63 @@ data class ShimConfig(
         // TURNIP_DIRECT → drm=true,  gbm=true,  egl=false, netstub=true, wrapper=true
         // (default)     → all enabled
     }
+}
+```
+
+---
+
+## `:launcher` Module
+
+**Package:** `nu.shell.wldroid.launcher`
+
+### XWaylandManager
+
+Prepares the XWayland wrapper script inside a proot environment.
+
+```kotlin
+class XWaylandManager(
+    prootConfig: ProotConfig,
+    cacheDir: File,
+) {
+    // Extracts the XWayland wrapper script into tempDir and returns
+    // the resolved path. Must be called before CompositorConfig is
+    // constructed so that xwaylandBinaryPath points to a real file.
+    suspend fun prepare(
+        environment: RootfsEnvironment,
+        tempDir: String,
+    ): XWaylandReadyResult
+}
+```
+
+### XWaylandReadyResult
+
+Result of XWayland preparation.
+
+```kotlin
+data class XWaylandReadyResult(
+    val wrapperScriptPath: String,  // Absolute path to the extracted wrapper script
+)
+```
+
+### CompositorConfigFactory
+
+Creates a `CompositorConfig` with XWayland preparation handled atomically.
+Prevents the common ordering bug where `CompositorConfig` is constructed
+before the XWayland wrapper script exists.
+
+```kotlin
+class CompositorConfigFactory(
+    private val xwaylandManager: XWaylandManager,
+) {
+    // Calls XWaylandManager.prepare() and builds a CompositorConfig
+    // with the resolved xwaylandBinaryPath in one step.
+    suspend fun createWithXWayland(
+        environment: RootfsEnvironment,
+        cacheDir: String,
+        tempDir: String,
+        xkbBasePath: String = "",
+        gpuMode: String = "AUTO",
+    ): CompositorConfig
 }
 ```
 

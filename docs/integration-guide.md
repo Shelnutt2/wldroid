@@ -343,6 +343,105 @@ WLDroid uses JNI and reflection in specific areas. Add these rules to your `prog
 - `native_handle_t` interop for DMA-BUF export (API 29+)
 - `FileDescriptor` APIs for Unix socket communication
 
+## Startup Ordering
+
+WLDroid's desktop pipeline has a strict startup ordering. The high-level
+`CompositorConfigFactory` and `DesktopLauncher` handle this automatically,
+but the ordering is documented here for apps that wire components manually.
+
+### Required order
+
+```
+1. Proot environment         EnvironmentRegistry.create() or RootfsManager
+2. XWayland preparation      XWaylandManager.prepare(environment, tempDir)
+3. Compositor config          CompositorConfig (with xwaylandBinaryPath from step 2)
+4. Compositor session         CompositorSession(config) + start(surface)
+5. GPU detection + VirGL      VirglSession.start() (after compositor is RUNNING)
+6. Shim extraction            ShimExtractor.extractAll()
+7. GPU setup (Phase 1)        GpuSetupManager.setup() inside proot
+8. Package installation       PackageInstaller.installPackages()
+9. App launch (Phase 2)       launch-app.sh inside proot
+```
+
+Steps 2 and 3 are the most common source of ordering bugs: if the XWayland
+wrapper script is not extracted before `CompositorConfig` is constructed, the
+`xwaylandBinaryPath` will reference a non-existent file and the compositor
+will fail to start XWayland.
+
+### Recommended: use CompositorConfigFactory
+
+`CompositorConfigFactory` performs steps 2 and 3 atomically, so downstream
+apps cannot construct a config with a dangling wrapper path:
+
+```kotlin
+val xwaylandManager = XWaylandManager(prootConfig, cacheDir)
+val factory = CompositorConfigFactory(xwaylandManager)
+val config = factory.createWithXWayland(
+    environment = rootfsEnvironment,
+    cacheDir = context.cacheDir.absolutePath,
+    tempDir = launcherConfig.tempDir,
+    xkbBasePath = xkbPath,
+)
+val session = CompositorSession(config)
+```
+
+### Recommended: use DesktopLauncher
+
+`DesktopLauncher` handles steps 4 through 9 internally. Combined with
+`CompositorConfigFactory` for steps 2 and 3, downstream apps only need to
+manage step 1 (environment creation) and surface lifecycle:
+
+```kotlin
+// Step 1: environment
+val env = environmentRegistry.environments.first().first()
+
+// Steps 2-3: config via factory
+val factory = CompositorConfigFactory(xwaylandManager)
+val config = factory.createWithXWayland(
+    environment = env,
+    cacheDir = context.cacheDir.absolutePath,
+    tempDir = launcherConfig.tempDir,
+)
+val session = CompositorSession(config)
+
+// Steps 4-9: launcher handles the rest
+val launcher = DesktopLauncher(
+    context = context,
+    compositorSession = session,
+    virglSession = virglSession,
+    shimExtractor = shimExtractor,
+    prootExecutor = prootExecutor,
+    config = launcherConfig,
+    xwaylandManager = xwaylandManager,
+)
+launcher.launch(env, listOf("code", "--no-sandbox"), scope = lifecycleScope)
+```
+
+### Manual wiring (advanced)
+
+If you need full control, call the low-level APIs in order:
+
+```kotlin
+// 1. Prepare XWayland
+val result = xwaylandManager.prepare(environment, tempDir)
+
+// 2. Build config with the ready path
+val config = CompositorConfig(
+    cacheDir = cacheDir,
+    xkbBasePath = xkbPath,
+    xwaylandEnabled = true,
+    xwaylandBinaryPath = result.wrapperScriptPath,
+    gpuMode = "AUTO",
+)
+
+// 3. Validate before starting (optional, start() validates too)
+config.validate()
+
+// 4. Start compositor
+val session = CompositorSession(config)
+session.start(surface)
+```
+
 ## Lifecycle Management
 
 ### CompositorSession Lifecycle
