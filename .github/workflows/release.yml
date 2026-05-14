@@ -51,9 +51,11 @@ jobs:
       - name: Compute clean version
         id: version
         run: |
-          # Tree is guaranteed clean right after checkout.
-          # Capture version now, before native builds modify the working tree.
-          VERSION=$(./gradlew -q printVersion)
+          # Capture version from git while tree is clean (before native builds).
+          # Palantir git-version uses: git describe --tags --always --first-parent
+          # and strips the leading 'v' prefix.
+          RAW=$(git describe --tags --always --first-parent)
+          VERSION="${RAW#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Clean version: $VERSION"
       - name: Install native build dependencies
