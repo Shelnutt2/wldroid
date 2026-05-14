@@ -61,3 +61,4 @@ external/talloc/
 __pycache__/
 *.pyc
 
+compositor/native/subprojects/.wraplock

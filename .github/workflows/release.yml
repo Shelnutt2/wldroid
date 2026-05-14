@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - '[0-9]*'
 
 permissions:
   contents: write
@@ -69,15 +70,24 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           bash scripts/build-all-native.sh
-      - name: Verify clean git version
+      - name: Restore clean git state after native build
         run: |
+          # Native builds (meson) modify tracked files like .wraplock.
+          # The palantir git-version plugin uses `git status --porcelain`
+          # to detect dirty state and appends '.dirty' to the version.
+          # Restore any tracked files modified by native builds.
+          git checkout -- .
+          DIRTY=$(git status --porcelain)
+          if [ -n "$DIRTY" ]; then
+            echo "WARNING: Untracked files present (should be gitignored):"
+            echo "$DIRTY"
+          fi
           VERSION=$(./gradlew -q printVersion 2>/dev/null || true)
           echo "Resolved version: $VERSION"
-          # Exclude build outputs and Gradle caches from git status.
-          # Only fail if tracked files are modified.
-          if git diff --name-only | grep -v '^.gradle' | grep -q .; then
-            echo "ERROR: Tracked files are dirty. This will produce a '-dirty' version suffix."
-            git diff --name-only
+          if echo "$VERSION" | grep -qi dirty; then
+            echo "ERROR: Version still contains 'dirty' suffix after cleanup."
+            echo "Untracked/modified state:"
+            git status --porcelain
             exit 1
           fi
       - name: Build release AARs
