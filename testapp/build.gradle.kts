@@ -14,8 +14,14 @@ android {
         applicationId = "nu.shell.wldroid.testapp"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        val parts = rootProject.version.toString().split("-")[0].split(".").mapNotNull { it.toIntOrNull() }
+        versionCode = when {
+            parts.size >= 3 -> parts[0] * 10000 + parts[1] * 100 + parts[2]
+            parts.size == 2 -> parts[0] * 10000 + parts[1] * 100
+            parts.size == 1 -> parts[0] * 10000
+            else -> 1
+        }
+        versionName = rootProject.version.toString()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
