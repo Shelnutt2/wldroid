@@ -48,6 +48,14 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
+      - name: Compute clean version
+        id: version
+        run: |
+          # Tree is guaranteed clean right after checkout.
+          # Capture version now, before native builds modify the working tree.
+          VERSION=$(./gradlew -q printVersion)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Clean version: $VERSION"
       - name: Install native build dependencies
         run: |
           sudo apt-get update
@@ -70,31 +78,15 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           bash scripts/build-all-native.sh
-      - name: Restore clean git state after native build
-        run: |
-          # Native builds (meson) modify tracked files like .wraplock.
-          # The palantir git-version plugin uses `git status --porcelain`
-          # to detect dirty state and appends '.dirty' to the version.
-          # Restore any tracked files modified by native builds.
-          git checkout -- .
-          DIRTY=$(git status --porcelain)
-          if [ -n "$DIRTY" ]; then
-            echo "WARNING: Untracked files present (should be gitignored):"
-            echo "$DIRTY"
-          fi
-          VERSION=$(./gradlew -q printVersion 2>/dev/null || true)
-          echo "Resolved version: $VERSION"
-          if echo "$VERSION" | grep -qi dirty; then
-            echo "ERROR: Version still contains 'dirty' suffix after cleanup."
-            echo "Untracked/modified state:"
-            git status --porcelain
-            exit 1
-          fi
       - name: Build release AARs
-        run: ./gradlew assembleRelease -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+        run: |
+          ./gradlew assembleRelease \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Publish to Maven Central
         run: |
           ./gradlew publishAndReleaseToMavenCentral \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
             -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -104,12 +96,14 @@ jobs:
       - name: Publish to GitHub Packages
         run: |
           ./gradlew publishAllPublicationsToGitHubPackagesRepository \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
             -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to filesystem Maven repo
         run: |
           ./gradlew publishAllPublicationsToFileSystemMavenRepoRepository \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
             -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Collect AARs
         run: |

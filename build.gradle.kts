@@ -10,9 +10,10 @@ plugins {
 }
 
 val gitVersion: groovy.lang.Closure<String> by extra
-val resolvedVersion = gitVersion()
 
-// If the property "snapshot" is set (e.g., -Psnapshot), append -SNAPSHOT
+// Allow CI to override the version (computed before native builds dirty the tree).
+// If the property "snapshot" is set (e.g., -Psnapshot), append -SNAPSHOT.
+val resolvedVersion = findProperty("overrideVersion")?.toString() ?: gitVersion()
 version = if (project.hasProperty("snapshot")) {
     resolvedVersion.replace(Regex("-\\d+-g[0-9a-f]+$"), "") + "-SNAPSHOT"
 } else {
