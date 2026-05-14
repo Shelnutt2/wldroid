@@ -4,7 +4,7 @@ Complete Kotlin API documentation for all WLDroid modules. Native (C) APIs are d
 
 ## `:compositor` Module
 
-**Package:** `nu.shell.wldroid.compositor`
+**Package:** `nu.shel.wldroid.compositor`
 
 ### CompositorServer
 
@@ -141,7 +141,7 @@ class CompositorInput(server: CompositorServer) {
 
 ## `:proot` Module
 
-**Package:** `nu.shell.wldroid.proot`
+**Package:** `nu.shel.wldroid.proot`
 
 ### EnvironmentRegistry
 
@@ -388,7 +388,7 @@ class ProotDnsManager(context: Context) {
 
 ## `:virgl` Module
 
-**Package:** `nu.shell.wldroid.virgl`
+**Package:** `nu.shel.wldroid.virgl`
 
 ### VirglSession
 
@@ -524,7 +524,7 @@ enum class VirglState {
 
 ## `:shims` Module
 
-**Package:** `nu.shell.wldroid.shims`
+**Package:** `nu.shel.wldroid.shims`
 
 ### ShimExtractor
 
@@ -580,7 +580,7 @@ data class ShimConfig(
 
 ## `:launcher` Module
 
-**Package:** `nu.shell.wldroid.launcher`
+**Package:** `nu.shel.wldroid.launcher`
 
 ### XWaylandManager
 
@@ -728,7 +728,7 @@ sealed class DesktopLauncherState {
 
 ## `:ui` Module
 
-**Package:** `nu.shell.wldroid.ui`
+**Package:** `nu.shel.wldroid.ui`
 
 ### CompositorSurface
 

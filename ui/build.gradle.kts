@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.ui"
+    namespace = "nu.shel.wldroid.ui"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

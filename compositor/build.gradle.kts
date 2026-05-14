@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.compositor"
+    namespace = "nu.shel.wldroid.compositor"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

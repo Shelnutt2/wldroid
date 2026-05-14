@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.virgl"
+    namespace = "nu.shel.wldroid.virgl"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

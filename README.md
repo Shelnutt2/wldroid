@@ -73,9 +73,9 @@ If already cloned without `--recursive`, run `git submodule update --init --recu
 The `:ui` module provides a Compose component that renders a Wayland compositor inline:
 
 ```kotlin
-import nu.shell.wldroid.ui.CompositorSurface
-import nu.shell.wldroid.compositor.CompositorConfig
-import nu.shell.wldroid.compositor.CompositorState
+import nu.shel.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.compositor.CompositorConfig
+import nu.shel.wldroid.compositor.CompositorState
 
 @Composable
 fun MyScreen() {
@@ -105,7 +105,7 @@ fun MyScreen() {
 The `:launcher` module is the recommended high-level entry point. `DesktopLauncher` handles GPU detection, VirGL server startup, shim extraction, package installation, and app launch in a single call:
 
 ```kotlin
-import nu.shell.wldroid.launcher.*
+import nu.shel.wldroid.launcher.*
 
 // DesktopLauncher is typically injected or constructed with all four
 // library modules (compositor, proot, virgl, shims).
@@ -142,7 +142,7 @@ Available presets include `TEST_PATTERN`, `WESTON_TERMINAL`, `ES2GEARS`, `WESTON
 For lower-level control without the launcher orchestration:
 
 ```kotlin
-import nu.shell.wldroid.compositor.*
+import nu.shel.wldroid.compositor.*
 
 val session = CompositorSession(
     CompositorConfig(

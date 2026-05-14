@@ -10,7 +10,7 @@ val publishArtifactId: String by project.extra
 val publishDescription: String by project.extra
 
 version = rootProject.version.toString()
-group = "nu.shell.wldroid"
+group = "nu.shel.wldroid"
 
 // Empty Javadoc JAR (satisfies repository requirements for Kotlin Android libraries)
 val javadocJar = tasks.register("javadocJar", Jar::class.java) {
@@ -23,7 +23,7 @@ afterEvaluate {
         publications {
             create<MavenPublication>("release") {
                 from(components["release"])
-                groupId = "nu.shell.wldroid"
+                groupId = "nu.shel.wldroid"
                 artifactId = publishArtifactId
                 this.version = rootProject.version.toString()
 

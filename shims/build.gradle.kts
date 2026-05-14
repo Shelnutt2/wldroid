@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nu.shell.wldroid.shims"
+    namespace = "nu.shel.wldroid.shims"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

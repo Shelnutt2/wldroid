@@ -13,7 +13,7 @@ This document describes how to add WLDroid modules to an Android project.
 
 ## Maven coordinates
 
-All modules are published under group `nu.shell.wldroid`:
+All modules are published under group `nu.shel.wldroid`:
 
 | Module | Artifact ID | Description |
 |---|---|---|
@@ -30,14 +30,14 @@ Most apps should declare only the high-level modules they need:
 
 ```kotlin
 // Launcher-only (no UI):
-implementation("nu.shell.wldroid:wldroid-launcher:<version>")
+implementation("nu.shel.wldroid:wldroid-launcher:<version>")
 
 // Full UI integration:
-implementation("nu.shell.wldroid:wldroid-ui:<version>")
+implementation("nu.shel.wldroid:wldroid-ui:<version>")
 
 // Both launcher and UI:
-implementation("nu.shell.wldroid:wldroid-launcher:<version>")
-implementation("nu.shell.wldroid:wldroid-ui:<version>")
+implementation("nu.shel.wldroid:wldroid-launcher:<version>")
+implementation("nu.shel.wldroid:wldroid-ui:<version>")
 ```
 
 `wldroid-launcher` and `wldroid-ui` transitively depend on `wldroid-compositor`,
@@ -71,7 +71,7 @@ dependencyResolutionManagement {
         mavenCentral()
         maven {
             url = uri("/path/to/wldroid-maven")
-            content { includeGroup("nu.shell.wldroid") }
+            content { includeGroup("nu.shel.wldroid") }
         }
     }
 }
@@ -85,7 +85,7 @@ val wldroidMavenRepo = System.getenv("WLDROID_LOCAL_MAVEN_REPO")
 if (wldroidMavenRepo != null) {
     maven {
         url = uri(wldroidMavenRepo)
-        content { includeGroup("nu.shell.wldroid") }
+        content { includeGroup("nu.shel.wldroid") }
     }
 }
 ```
@@ -110,7 +110,7 @@ dependencyResolutionManagement {
                 password = System.getenv("GITHUB_TOKEN")
                     ?: providers.gradleProperty("gpr.key").orNull ?: ""
             }
-            content { includeGroup("nu.shell.wldroid") }
+            content { includeGroup("nu.shel.wldroid") }
         }
     }
 }

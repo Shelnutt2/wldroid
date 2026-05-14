@@ -171,7 +171,7 @@ meson test -C builddir-host -v
 ./gradlew :virgl:test
 
 # Single test class
-./gradlew :virgl:test --tests "nu.shell.wldroid.virgl.GpuModeTest"
+./gradlew :virgl:test --tests "nu.shel.wldroid.virgl.GpuModeTest"
 
 # With detailed output
 ./gradlew test --info
@@ -384,8 +384,8 @@ test('test_my_feature', executable('test_my_feature',
 ### Kotlin Unit Test
 
 ```kotlin
-// virgl/src/test/java/nu/shell/wldroid/virgl/MyFeatureTest.kt
-package nu.shell.wldroid.virgl
+// virgl/src/test/java/nu/shel/wldroid/virgl/MyFeatureTest.kt
+package nu.shel.wldroid.virgl
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
@@ -403,8 +403,8 @@ class MyFeatureTest {
 ### Compose UI Test
 
 ```kotlin
-// ui/src/androidTest/java/nu/shell/wldroid/ui/GpuModeSelectorTest.kt
-package nu.shell.wldroid.ui
+// ui/src/androidTest/java/nu/shel/wldroid/ui/GpuModeSelectorTest.kt
+package nu.shel.wldroid.ui
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
