@@ -8,4 +8,5 @@ plugins {
     alias(libs.plugins.git.version)
 }
 
+val gitVersion: groovy.lang.Closure<String> by extra
 version = gitVersion()
