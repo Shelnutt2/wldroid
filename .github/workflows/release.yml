@@ -68,9 +68,9 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           bash scripts/build-all-native.sh
       - name: Build release AARs
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
       - name: Publish to GitHub Packages
-        run: ./gradlew publish
+        run: ./gradlew publish -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Collect AARs
