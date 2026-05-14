@@ -88,6 +88,7 @@ class DesktopLauncher(
         scope: CoroutineScope,
     ) {
         launchJob?.cancel()
+        _gpuMode.value = GpuMode.AUTO
         launchJob = scope.launch {
             try {
                 // 0. Set AHB_REGISTRY_SOCKET so compositor↔VirGL GPU buffer sharing works.
@@ -310,6 +311,39 @@ class DesktopLauncher(
         launchJob?.cancelAndJoin()
         launchJob = null
         virglSession.stop()
+        cleanupStaleFiles()
         _state.value = DesktopLauncherState.Idle
+    }
+
+    /**
+     * Remove stale sockets and temp files left by a previous session so the
+     * next launch starts from a clean slate.
+     */
+    private fun cleanupStaleFiles() {
+        // Wayland sockets
+        val waylandDir = File(config.waylandRuntimeDir)
+        if (waylandDir.isDirectory) {
+            waylandDir.listFiles()?.filter { it.name.startsWith("wayland-") }?.forEach { file ->
+                if (file.delete()) {
+                    emitOutput("Cleaned stale Wayland socket: ${file.name}")
+                }
+            }
+        }
+
+        // AHB registry socket
+        val ahbSocket = File(config.resolvedAhbSocketPath)
+        if (ahbSocket.exists() && ahbSocket.delete()) {
+            emitOutput("Cleaned stale AHB registry socket: ${ahbSocket.name}")
+        }
+
+        // X11 socket dir (remove contents, keep the directory)
+        val x11Dir = File(config.tempDir, ".X11-unix")
+        if (x11Dir.isDirectory) {
+            x11Dir.listFiles()?.forEach { file ->
+                if (file.delete()) {
+                    emitOutput("Cleaned stale X11 socket: ${file.name}")
+                }
+            }
+        }
     }
 }

@@ -51,8 +51,15 @@ class VirglSession(
      * was provided, the best mode is detected first. Modes that don't require
      * a VirGL server (e.g. [GpuMode.SOFTWARE], [GpuMode.TURNIP_DIRECT]) will
      * skip server startup.
+     *
+     * This method is a no-op if the session is already [VirglState.STARTING]
+     * or [VirglState.RUNNING]. It can be called again after [stop] (from
+     * [VirglState.STOPPED]) to restart the session.
      */
     suspend fun start() {
+        // No-op if already starting or running.
+        if (_state.value == VirglState.STARTING || _state.value == VirglState.RUNNING) return
+
         // Resolve the effective GPU mode.
         val effectiveMode = resolveGpuMode()
         _detectedGpuMode.value = effectiveMode
@@ -61,6 +68,10 @@ class VirglSession(
             _state.value = VirglState.RUNNING
             return
         }
+
+        // Cancel any lingering scope from a previous partial failure.
+        sessionScope?.cancel()
+        sessionScope = null
 
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         sessionScope = scope
@@ -86,8 +97,15 @@ class VirglSession(
         }
     }
 
-    /** Stop the VirGL server session. */
+    /**
+     * Stop the VirGL server session.
+     *
+     * No-op if the session is already [VirglState.IDLE] or [VirglState.STOPPED].
+     */
     suspend fun stop() {
+        // No-op if already idle or stopped.
+        if (_state.value == VirglState.IDLE || _state.value == VirglState.STOPPED) return
+
         _state.value = VirglState.STOPPING
         sessionScope?.cancel()
         sessionScope = null
