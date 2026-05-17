@@ -92,8 +92,19 @@ jobs:
           fi
       - name: Build release AARs
         run: ./gradlew assembleRelease -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+      - name: Publish to Maven Central
+        run: |
+          ./gradlew publishAndReleaseToMavenCentral \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
       - name: Publish to GitHub Packages
-        run: ./gradlew publish -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+        run: |
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to filesystem Maven repo
