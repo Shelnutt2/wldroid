@@ -1,0 +1,63 @@
+name: Snapshot Publish
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  snapshot-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Setup Android SDK + NDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.13004108"
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            libwayland-dev \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          pip3 install meson
+      - name: Setup Meson subprojects
+        run: bash scripts/setup-meson-subprojects.sh
+      - name: Build all native components
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          bash scripts/build-all-native.sh
+      - name: Restore clean git state
+        run: git checkout -- .
+      - name: Publish snapshots to Maven Central
+        run: |
+          ./gradlew publishToMavenCentral \
+            -Psnapshot \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
+      - name: Publish snapshots to GitHub Packages
+        run: |
+          ./gradlew publishAllPublicationsToGitHubPackagesRepository \
+            -Psnapshot \
+            -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
