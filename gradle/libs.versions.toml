@@ -26,6 +26,7 @@ androidx-test-runner = "1.6.2"
 androidx-test-rules = "1.6.1"
 androidx-test-orchestrator = "1.5.1"
 annotation = "1.9.1"
+maven-publish = "0.34.0"
 
 [libraries]
 # Compose BOM
@@ -93,3 +94,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 git-version = { id = "com.palantir.git-version", version = "3.1.0" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
