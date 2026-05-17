@@ -1,7 +1,7 @@
 name: Snapshot Publish
 on:
   push:
-    branches: [main]
+    branches: [main, publish-kbqd]
 
 concurrency:
   group: snapshot-${{ github.ref }}
