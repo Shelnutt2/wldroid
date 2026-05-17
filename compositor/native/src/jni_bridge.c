@@ -2,7 +2,7 @@
  * jni_bridge.c — JNI entry points for the WLDroid Wayland compositor
  *
  * Native methods are registered dynamically via JNI_OnLoad + RegisterNatives
- * on the configurable class nu.shell.wldroid.compositor.CompositorServer.
+ * on the configurable class nu.shel.wldroid.compositor.CompositorServer.
  *
  * Exposed methods:
  *   nativeStartCompositor(Surface, String, String)
@@ -49,7 +49,7 @@
 /* ------------------------------------------------------------------ */
 
 #ifndef JNI_CLASS_PATH
-#define JNI_CLASS_PATH "nu/shell/wldroid/compositor/CompositorServer"
+#define JNI_CLASS_PATH "nu/shel/wldroid/compositor/CompositorServer"
 #endif
 
 /* ------------------------------------------------------------------ */
