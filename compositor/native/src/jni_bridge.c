@@ -10,6 +10,8 @@
  *   nativeGetSocketName() → String
  *   nativeGetClientCount() → int
  *   nativeResizeOutput(int, int)
+ *   nativePauseCompositor()
+ *   nativeResumeCompositor(Surface)
  *   nativeSendTouchEvent(int, int, float, float, long)
  *   nativeSendKeyEvent(int, int, long)
  *   nativeSendPointerMotion(float, float, long)
@@ -396,6 +398,43 @@ static void native_start_test_client(JNIEnv *env, jobject thiz) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Pause / resume                                                      */
+/* ------------------------------------------------------------------ */
+
+static void native_pause_compositor(JNIEnv *env, jobject thiz) {
+    (void)env;
+    (void)thiz;
+
+    pthread_mutex_lock(&g_server_mutex);
+    if (!g_server || !g_thread_running) {
+        pthread_mutex_unlock(&g_server_mutex);
+        return;
+    }
+    compositor_server_pause(g_server);
+    pthread_mutex_unlock(&g_server_mutex);
+}
+
+static void native_resume_compositor(JNIEnv *env, jobject thiz,
+                                     jobject surface) {
+    (void)thiz;
+
+    pthread_mutex_lock(&g_server_mutex);
+    if (!g_server || !g_thread_running) {
+        pthread_mutex_unlock(&g_server_mutex);
+        return;
+    }
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
+    if (!window) {
+        LOGE("native_resume_compositor: ANativeWindow_fromSurface returned NULL");
+        pthread_mutex_unlock(&g_server_mutex);
+        return;
+    }
+    compositor_server_resume(g_server, window);
+    ANativeWindow_release(window);  /* resume() acquires its own ref */
+    pthread_mutex_unlock(&g_server_mutex);
+}
+
+/* ------------------------------------------------------------------ */
 /* JNI_OnLoad — dynamic registration via RegisterNatives               */
 /* ------------------------------------------------------------------ */
 
@@ -411,6 +450,10 @@ static const JNINativeMethod g_methods[] = {
                                 (void *)native_get_client_count},
     {"nativeResizeOutput",     "(II)V",
                                 (void *)native_resize_output},
+    {"nativePauseCompositor",  "()V",
+                                (void *)native_pause_compositor},
+    {"nativeResumeCompositor", "(Landroid/view/Surface;)V",
+                                (void *)native_resume_compositor},
 
     /* Input */
     {"nativeSendTouchEvent",   "(IIFFJ)V",

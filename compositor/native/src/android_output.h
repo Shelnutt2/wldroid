@@ -38,4 +38,22 @@ struct android_output {
 struct wlr_output *android_output_create(struct android_backend *backend,
                                          ANativeWindow *window);
 
+
+/**
+ * Detach the native window from the output (pause rendering).
+ * Disarms the frame timer, disables the wlr_output, and releases
+ * the ANativeWindow + ASurfaceControl.  Must be called on the
+ * compositor event-loop thread.
+ */
+void android_output_detach_window(struct android_output *output);
+
+/**
+ * Attach a new native window to the output (resume rendering).
+ * Acquires @window, recreates ASurfaceControl, re-enables the
+ * wlr_output, and re-arms the frame timer.  Must be called on the
+ * compositor event-loop thread.
+ */
+void android_output_attach_window(struct android_output *output,
+                                  ANativeWindow *window);
+
 #endif /* ANDROID_OUTPUT_H */

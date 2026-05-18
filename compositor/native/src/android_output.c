@@ -191,6 +191,12 @@ static bool output_commit(struct wlr_output *wlr_output,
         return false;
     }
 
+    /* When the native window is detached (paused), skip buffer presentation
+     * but still accept the commit so wlroots state tracking stays consistent. */
+    if (!output->native_window) {
+        return true;
+    }
+
     static int commit_count = 0;
     if (++commit_count <= 10) {
         LOGI("output_commit #%d: committed=0x%x (enabled=%d, mode=%d, buffer=%d)",
@@ -269,6 +275,62 @@ static void output_destroy(struct wlr_output *wlr_output) {
 /* ------------------------------------------------------------------ */
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
+
+void android_output_detach_window(struct android_output *output) {
+    /* Disarm frame timer so no more frames fire while detached. */
+    wl_event_source_timer_update(output->frame_timer, 0);
+
+    /* Disable the wlr_output. */
+    struct wlr_output_state state;
+    wlr_output_state_init(&state);
+    wlr_output_state_set_enabled(&state, false);
+    wlr_output_commit_state(&output->wlr_output, &state);
+    wlr_output_state_finish(&state);
+
+    /* Release ASurfaceControl if present. */
+    if (output->surface_control) {
+        ASurfaceControl_release((ASurfaceControl *)output->surface_control);
+        output->surface_control = NULL;
+    }
+
+    /* Release ANativeWindow. */
+    if (output->native_window) {
+        ANativeWindow_release(output->native_window);
+        output->native_window = NULL;
+    }
+
+    LOGI("Output detached (window released, frame timer disarmed)");
+}
+
+void android_output_attach_window(struct android_output *output,
+                                  ANativeWindow *window) {
+    /* Acquire new window reference. */
+    ANativeWindow_acquire(window);
+    output->native_window = window;
+
+    /* Recreate ASurfaceControl for zero-copy presentation. */
+    output->surface_control =
+        ASurfaceControl_createFromWindow(window, "coder-compositor");
+
+    /* Update buffer geometry to current output dimensions. */
+    ANativeWindow_setBuffersGeometry(output->native_window,
+        output->wlr_output.width, output->wlr_output.height,
+        AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM);
+
+    /* Re-enable the wlr_output. */
+    struct wlr_output_state state;
+    wlr_output_state_init(&state);
+    wlr_output_state_set_enabled(&state, true);
+    wlr_output_commit_state(&output->wlr_output, &state);
+    wlr_output_state_finish(&state);
+
+    /* Re-arm frame timer. */
+    wl_event_source_timer_update(output->frame_timer, output->frame_delay_ms);
+
+    LOGI("Output attached: %dx%d, frame_delay=%dms",
+         output->wlr_output.width, output->wlr_output.height,
+         output->frame_delay_ms);
+}
 
 struct wlr_output *android_output_create(struct android_backend *backend,
                                          ANativeWindow *window) {
