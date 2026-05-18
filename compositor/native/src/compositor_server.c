@@ -174,6 +174,11 @@ static void on_output_frame(struct wl_listener *listener, void *data) {
     struct compositor_server *server =
         wl_container_of(listener, server, output_frame);
 
+    /* Defense in depth: skip rendering while paused. */
+    if (server->paused) {
+        return;
+    }
+
     struct wlr_scene_output *scene_output = server->scene_output;
     if (!scene_output) {
         return;
@@ -484,6 +489,50 @@ static int on_resize_event(int fd, uint32_t mask, void *data) {
     wlr_log(WLR_INFO, "Output resized to %dx%d", width, height);
     return 0;
 }
+/* ------------------------------------------------------------------ */
+/* Pause/resume event (pipe-based, UI thread → compositor thread)      */
+/* ------------------------------------------------------------------ */
+
+static int on_pause_resume_event(int fd, uint32_t mask, void *data) {
+    (void)mask;
+    struct compositor_server *server = data;
+
+    char cmd;
+    ssize_t n = read(fd, &cmd, 1);
+    if (n <= 0) {
+        if (n < 0 && errno != EAGAIN) {
+            wlr_log(WLR_ERROR, "pause_resume pipe read error: %s",
+                    strerror(errno));
+        }
+        return 0;
+    }
+
+    if (cmd == 'P') {
+        /* Pause: detach the native window. */
+        if (server->output) {
+            struct android_output *output =
+                wl_container_of(server->output, output, wlr_output);
+            android_output_detach_window(output);
+        }
+        server->paused = true;
+        LOGI_COMP("Compositor paused — output detached");
+    } else if (cmd == 'R') {
+        /* Resume: attach the pending window. */
+        ANativeWindow *window = server->pending_resume_window;
+        server->pending_resume_window = NULL;
+        if (server->output && window) {
+            struct android_output *output =
+                wl_container_of(server->output, output, wlr_output);
+            android_output_attach_window(output, window);
+            ANativeWindow_release(window);  /* attach acquires its own ref */
+        }
+        server->paused = false;
+        LOGI_COMP("Compositor resumed — output attached");
+    }
+
+    return 0;
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Public API                                                          */
@@ -693,6 +742,21 @@ struct compositor_server *compositor_server_create(ANativeWindow *window) {
         server->resize_pipe[0] = -1;
         server->resize_pipe[1] = -1;
     }
+    /* ---- Pause/resume pipe (UI thread → compositor thread) ---- */
+    server->paused = false;
+    server->pending_resume_window = NULL;
+    if (pipe2(server->pause_resume_pipe, O_CLOEXEC | O_NONBLOCK) == 0) {
+        struct wl_event_loop *pr_loop =
+            wl_display_get_event_loop(server->wl_display);
+        server->pause_resume_event_source = wl_event_loop_add_fd(
+            pr_loop, server->pause_resume_pipe[0], WL_EVENT_READABLE,
+            on_pause_resume_event, server);
+    } else {
+        wlr_log(WLR_ERROR, "Failed to create pause_resume pipe");
+        server->pause_resume_pipe[0] = -1;
+        server->pause_resume_pipe[1] = -1;
+    }
+
 
     /* ---- Wayland protocols ---- */
     server->compositor =
@@ -836,6 +900,17 @@ void compositor_server_destroy(struct compositor_server *server) {
     }
     if (server->resize_pipe[0] >= 0) close(server->resize_pipe[0]);
     if (server->resize_pipe[1] >= 0) close(server->resize_pipe[1]);
+    /* Clean up pause/resume pipe. */
+    if (server->pause_resume_event_source) {
+        wl_event_source_remove(server->pause_resume_event_source);
+    }
+    if (server->pause_resume_pipe[0] >= 0) close(server->pause_resume_pipe[0]);
+    if (server->pause_resume_pipe[1] >= 0) close(server->pause_resume_pipe[1]);
+    if (server->pending_resume_window) {
+        ANativeWindow_release(server->pending_resume_window);
+        server->pending_resume_window = NULL;
+    }
+
 
     /* Destroy AHB registry. */
     ahb_registry_receiver_stop();
@@ -883,6 +958,23 @@ void compositor_server_resize_output(struct compositor_server *server,
     __atomic_thread_fence(__ATOMIC_RELEASE);
     char c = 'r';
     write(server->resize_pipe[1], &c, 1);
+}
+
+void compositor_server_pause(struct compositor_server *server) {
+    if (!server || server->pause_resume_pipe[1] < 0) return;
+    char c = 'P';
+    write(server->pause_resume_pipe[1], &c, 1);
+}
+
+void compositor_server_resume(struct compositor_server *server,
+                              ANativeWindow *window) {
+    if (!server || server->pause_resume_pipe[1] < 0 || !window) return;
+    /* Acquire a reference for the compositor thread to consume. */
+    ANativeWindow_acquire(window);
+    server->pending_resume_window = window;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    char c = 'R';
+    write(server->pause_resume_pipe[1], &c, 1);
 }
 
 int compositor_server_get_client_count(struct compositor_server *server) {

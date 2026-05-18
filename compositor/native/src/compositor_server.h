@@ -59,6 +59,12 @@ struct compositor_server {
     struct wl_global *text_input_manager;
     int ime_request_pipe[2];         /* [0]=read (Kotlin side), [1]=write (compositor) */
 
+    /* Pause/resume signaling (UI thread → compositor thread via pipe) */
+    bool paused;
+    ANativeWindow *pending_resume_window;
+    int pause_resume_pipe[2];            /* [0]=read, [1]=write */
+    struct wl_event_source *pause_resume_event_source;
+
     /* Listeners */
     struct wl_listener new_output;
     struct wl_listener new_xdg_toplevel;
@@ -140,5 +146,20 @@ void compositor_server_resize_output(struct compositor_server *server,
  * Return the number of currently connected Wayland clients.
  */
 int compositor_server_get_client_count(struct compositor_server *server);
+
+
+/**
+ * Pause the compositor — detach the native window and stop rendering.
+ * Thread-safe (signals via pipe; actual work runs on the compositor thread).
+ */
+void compositor_server_pause(struct compositor_server *server);
+
+/**
+ * Resume the compositor — attach a new native window and restart rendering.
+ * Thread-safe (signals via pipe; actual work runs on the compositor thread).
+ * Acquires its own reference to @window.
+ */
+void compositor_server_resume(struct compositor_server *server,
+                              ANativeWindow *window);
 
 #endif /* COMPOSITOR_SERVER_H */
