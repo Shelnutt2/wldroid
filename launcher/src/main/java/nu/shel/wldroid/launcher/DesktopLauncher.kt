@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withContext
@@ -73,6 +74,21 @@ class DesktopLauncher(
 
     companion object {
         private const val TAG = "DesktopLauncher"
+
+        /**
+         * How often to poll `CompositorSession.refreshClientCount()` after the
+         * launch process exits, to determine whether Wayland clients are still
+         * connected.
+         */
+        private const val CLIENT_POLL_INTERVAL_MS = 1_000L
+
+        /**
+         * Grace period after the last Wayland client disconnects before
+         * transitioning to [DesktopLauncherState.Idle].  This avoids premature
+         * teardown when a client temporarily disconnects and reconnects (e.g.
+         * Electron respawning a renderer process).
+         */
+        private const val CLIENT_DRAIN_GRACE_MS = 5_000L
     }
 
     /** Emit a message to the process output stream (visible in the log panel and logcat). */
@@ -258,6 +274,13 @@ class DesktopLauncher(
                         process.waitFor()
                     }
                     emitOutput("Process exited with code $exitCode")
+
+                    // The launch process (proot) exited, but Wayland clients may
+                    // still be connected to the compositor (e.g. Electron forks to
+                    // background).  Stay in Running state while clients are active,
+                    // matching the lifecycle model from the original compositor.
+                    awaitClientsDrained()
+
                     _state.value = DesktopLauncherState.Idle
                 } finally {
                     activeProcess = null
@@ -286,6 +309,52 @@ class DesktopLauncher(
         scope: CoroutineScope,
     ) {
         launch(environment, preset.command, preset.requiredPackages, scope)
+    }
+
+    /**
+     * After the launch process exits, poll the compositor's Wayland client count
+     * and stay in [DesktopLauncherState.Running] as long as clients are connected.
+     *
+     * Some apps (e.g. VS Code / Electron) fork to background — the proot launch
+     * process exits immediately while the Wayland client keeps rendering.  Instead
+     * of tearing down the session on process exit, we use the compositor's client
+     * count as the lifecycle authority, matching the old CompositorActivity model.
+     *
+     * After all clients disconnect, a [CLIENT_DRAIN_GRACE_MS] grace period avoids
+     * premature teardown when a client temporarily disconnects and reconnects.
+     */
+    private suspend fun awaitClientsDrained() {
+        compositorSession.refreshClientCount()
+        val initialClients = compositorSession.clientCount.value
+        if (initialClients <= 0) {
+            emitOutput("No Wayland clients connected, session complete")
+            return
+        }
+
+        emitOutput("Process exited but $initialClients Wayland client(s) still connected — staying alive")
+        var drainStartTime = 0L
+
+        while (_state.value == DesktopLauncherState.Running) {
+            delay(CLIENT_POLL_INTERVAL_MS)
+            compositorSession.refreshClientCount()
+            val count = compositorSession.clientCount.value
+
+            if (count > 0) {
+                // Clients still connected — reset drain timer.
+                drainStartTime = 0L
+            } else {
+                // No clients — start or continue the drain grace period.
+                if (drainStartTime == 0L) {
+                    drainStartTime = System.currentTimeMillis()
+                    emitOutput("All Wayland clients disconnected, starting ${CLIENT_DRAIN_GRACE_MS}ms grace period")
+                }
+                val elapsed = System.currentTimeMillis() - drainStartTime
+                if (elapsed >= CLIENT_DRAIN_GRACE_MS) {
+                    emitOutput("Grace period elapsed, session complete")
+                    return
+                }
+            }
+        }
     }
 
     suspend fun stop() {
