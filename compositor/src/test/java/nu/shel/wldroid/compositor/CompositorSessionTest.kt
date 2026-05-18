@@ -38,6 +38,7 @@ class CompositorSessionTest {
         val idle = CompositorState.IDLE
         val starting = CompositorState.STARTING
         val running = CompositorState.RUNNING
+        val paused = CompositorState.PAUSED
         val stopping = CompositorState.STOPPING
         val stopped = CompositorState.STOPPED
         val error = CompositorState.ERROR
@@ -46,12 +47,15 @@ class CompositorSessionTest {
         assertEquals(idle.ordinal + 1, starting.ordinal)
         assertEquals(starting.ordinal + 1, running.ordinal)
 
-        // RUNNING -> STOPPING -> STOPPED is the shutdown path
-        assertEquals(running.ordinal + 1, stopping.ordinal)
+        // RUNNING -> PAUSED is the pause path
+        assertEquals(running.ordinal + 1, paused.ordinal)
+
+        // PAUSED/RUNNING -> STOPPING -> STOPPED is the shutdown path
+        assertEquals(paused.ordinal + 1, stopping.ordinal)
         assertEquals(stopping.ordinal + 1, stopped.ordinal)
 
         // ERROR is the terminal error state
-        assertEquals(5, error.ordinal)
+        assertEquals(6, error.ordinal)
     }
 
     @Test

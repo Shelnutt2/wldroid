@@ -9,10 +9,11 @@ class CompositorStateTest {
     @Test
     fun `all expected states exist`() {
         val states = CompositorState.entries
-        assertEquals(6, states.size)
+        assertEquals(7, states.size)
         assertNotNull(CompositorState.valueOf("IDLE"))
         assertNotNull(CompositorState.valueOf("STARTING"))
         assertNotNull(CompositorState.valueOf("RUNNING"))
+        assertNotNull(CompositorState.valueOf("PAUSED"))
         assertNotNull(CompositorState.valueOf("STOPPING"))
         assertNotNull(CompositorState.valueOf("STOPPED"))
         assertNotNull(CompositorState.valueOf("ERROR"))
@@ -23,8 +24,9 @@ class CompositorStateTest {
         assertEquals(0, CompositorState.IDLE.ordinal)
         assertEquals(1, CompositorState.STARTING.ordinal)
         assertEquals(2, CompositorState.RUNNING.ordinal)
-        assertEquals(3, CompositorState.STOPPING.ordinal)
-        assertEquals(4, CompositorState.STOPPED.ordinal)
-        assertEquals(5, CompositorState.ERROR.ordinal)
+        assertEquals(3, CompositorState.PAUSED.ordinal)
+        assertEquals(4, CompositorState.STOPPING.ordinal)
+        assertEquals(5, CompositorState.STOPPED.ordinal)
+        assertEquals(6, CompositorState.ERROR.ordinal)
     }
 }
