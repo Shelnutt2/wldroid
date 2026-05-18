@@ -313,6 +313,18 @@ class RootfsManager(
      * @return List of newly adopted [RootfsEnvironment] records
      */
     suspend fun adoptOrphanedEnvironments(): List<RootfsEnvironment> {
+        // Clean up interrupted installations (directories with a .creating marker).
+        // These are leftover from environment creations that were killed mid-way
+        // (e.g. app crash or process death during rootfs extraction).
+        if (rootfsBaseDir.exists()) {
+            rootfsBaseDir.listFiles()?.filter { dir ->
+                dir.isDirectory && File(dir, ".creating").exists()
+            }?.forEach { dir ->
+                Log.i(TAG, "Cleaning up interrupted installation: ${dir.name}")
+                dir.deleteRecursively()
+            }
+        }
+
         val orphanIds = findOrphanedEnvironments()
         if (orphanIds.isEmpty()) return emptyList()
 

@@ -17,12 +17,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,14 +46,16 @@ class EnvironmentViewModel @Inject constructor(
     private val _shellOutput = MutableStateFlow("")
     val shellOutput: StateFlow<String> = _shellOutput
 
-    suspend fun createEnvironment(name: String, distro: DistroTemplate) {
+    fun createEnvironment(name: String, distro: DistroTemplate) {
         environmentRegistry.create(
             EnvironmentConfig(name = name, distro = distro),
         )
     }
 
-    suspend fun deleteEnvironment(id: String) {
-        environmentRegistry.delete(id)
+    fun deleteEnvironment(id: String) {
+        viewModelScope.launch {
+            environmentRegistry.delete(id)
+        }
     }
 
     suspend fun launchShell(env: RootfsEnvironment) {
@@ -73,7 +75,6 @@ fun EnvironmentScreen(
 ) {
     val environments by viewModel.environments.collectAsState()
     val shellOutput by viewModel.shellOutput.collectAsState()
-    val scope = rememberCoroutineScope()
     var showCreator by remember { mutableStateOf(false) }
     var selectedEnv by remember { mutableStateOf<RootfsEnvironment?>(null) }
     var deleteTarget by remember { mutableStateOf<RootfsEnvironment?>(null) }
@@ -121,7 +122,7 @@ fun EnvironmentScreen(
             availableDistros = viewModel.environmentRegistry.availableDistros(),
             onConfirm = { config ->
                 showCreator = false
-                scope.launch { viewModel.createEnvironment(config.name, config.distro) }
+                viewModel.createEnvironment(config.name, config.distro)
             },
             onDismiss = { showCreator = false },
         )
@@ -135,7 +136,7 @@ fun EnvironmentScreen(
             text = { Text("Delete \"${env.name}\"? This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { viewModel.deleteEnvironment(env.id) }
+                    viewModel.deleteEnvironment(env.id)
                     deleteTarget = null
                 }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
