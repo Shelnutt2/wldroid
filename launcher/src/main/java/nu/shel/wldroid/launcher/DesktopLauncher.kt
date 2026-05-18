@@ -324,32 +324,44 @@ class DesktopLauncher(
      * premature teardown when a client temporarily disconnects and reconnects.
      */
     private suspend fun awaitClientsDrained() {
-        compositorSession.refreshClientCount()
-        val initialClients = compositorSession.clientCount.value
+        // Guard: skip polling if already stopping or compositor is not running.
+        if (_state.value != DesktopLauncherState.Running) return
+        if (!compositorSession.state.value.isRunning) {
+            emitOutput("Compositor not running, session complete")
+            return
+        }
+
+        val initialClients = compositorSession.getClientCount()
         if (initialClients <= 0) {
             emitOutput("No Wayland clients connected, session complete")
             return
         }
 
         emitOutput("Process exited but $initialClients Wayland client(s) still connected — staying alive")
-        var drainStartTime = 0L
+        var drainStartNanos = 0L
 
         while (_state.value == DesktopLauncherState.Running) {
             delay(CLIENT_POLL_INTERVAL_MS)
-            compositorSession.refreshClientCount()
-            val count = compositorSession.clientCount.value
+
+            // Exit immediately if the compositor has stopped (e.g. surface destroyed).
+            if (!compositorSession.state.value.isRunning) {
+                emitOutput("Compositor stopped, session complete")
+                return
+            }
+
+            val count = compositorSession.getClientCount()
 
             if (count > 0) {
                 // Clients still connected — reset drain timer.
-                drainStartTime = 0L
+                drainStartNanos = 0L
             } else {
                 // No clients — start or continue the drain grace period.
-                if (drainStartTime == 0L) {
-                    drainStartTime = System.currentTimeMillis()
+                if (drainStartNanos == 0L) {
+                    drainStartNanos = System.nanoTime()
                     emitOutput("All Wayland clients disconnected, starting ${CLIENT_DRAIN_GRACE_MS}ms grace period")
                 }
-                val elapsed = System.currentTimeMillis() - drainStartTime
-                if (elapsed >= CLIENT_DRAIN_GRACE_MS) {
+                val elapsedMs = (System.nanoTime() - drainStartNanos) / 1_000_000
+                if (elapsedMs >= CLIENT_DRAIN_GRACE_MS) {
                     emitOutput("Grace period elapsed, session complete")
                     return
                 }
