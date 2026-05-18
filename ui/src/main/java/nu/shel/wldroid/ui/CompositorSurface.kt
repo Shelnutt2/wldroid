@@ -127,7 +127,12 @@ private fun CompositorAndroidView(
                 view.holder.addCallback(
                     object : SurfaceHolder.Callback {
                         override fun surfaceCreated(holder: SurfaceHolder) {
-                            surfaceState.session.start(holder.surface)
+                            val state = surfaceState.session.state.value
+                            if (state == CompositorState.PAUSED) {
+                                surfaceState.session.resume(holder.surface)
+                            } else {
+                                surfaceState.session.start(holder.surface)
+                            }
                         }
 
                         override fun surfaceChanged(
@@ -140,12 +145,7 @@ private fun CompositorAndroidView(
                         }
 
                         override fun surfaceDestroyed(holder: SurfaceHolder) {
-                            // Use stopAsync() to avoid blocking the UI thread
-                            // inside the surfaceDestroyed callback.  On Mali GPUs,
-                            // calling nativeStopCompositor() synchronously here
-                            // causes a SIGSEGV because eglDestroyContext() runs
-                            // while the native window is still being torn down.
-                            surfaceState.session.stopAsync()
+                            surfaceState.session.pause()
                         }
                     },
                 )

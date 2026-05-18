@@ -16,6 +16,8 @@ class CompositorServer {
     // Compositor lifecycle
     external fun nativeStartCompositor(surface: Surface, cacheDir: String, xkbBasePath: String)
     external fun nativeStopCompositor()
+    external fun nativePauseCompositor()
+    external fun nativeResumeCompositor(surface: Surface)
     external fun nativeGetSocketName(): String?
     external fun nativeGetClientCount(): Int
     external fun nativeResizeOutput(width: Int, height: Int)

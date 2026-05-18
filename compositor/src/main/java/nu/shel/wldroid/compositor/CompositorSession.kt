@@ -96,6 +96,18 @@ class CompositorSession(private val config: CompositorConfig) {
         runtimeDir?.let { cleanStaleWaylandFiles(it) }
     }
 
+    fun pause() {
+        if (_state.value != CompositorState.RUNNING) return
+        _state.value = CompositorState.PAUSED
+        server.nativePauseCompositor()
+    }
+
+    fun resume(surface: Surface) {
+        if (_state.value != CompositorState.PAUSED) return
+        server.nativeResumeCompositor(surface)
+        _state.value = CompositorState.RUNNING
+    }
+
     /**
      * Stop the compositor synchronously (blocks until the event-loop thread
      * exits and resources are destroyed).  Safe to call multiple times —
