@@ -112,6 +112,7 @@ class CompositorServerTest {
             CompositorState.IDLE,
             CompositorState.STARTING,
             CompositorState.RUNNING,
+            CompositorState.PAUSED,
             CompositorState.STOPPING,
             CompositorState.STOPPED,
             CompositorState.ERROR,
