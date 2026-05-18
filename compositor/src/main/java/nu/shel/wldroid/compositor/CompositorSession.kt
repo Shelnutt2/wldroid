@@ -147,8 +147,32 @@ class CompositorSession(private val config: CompositorConfig) {
         }.start()
     }
 
+    /**
+     * Poll the native compositor for the current Wayland client count,
+     * updating the [clientCount] StateFlow.
+     *
+     * Safe to call after the compositor has stopped — returns 0 when the
+     * native server is no longer running.
+     */
     fun refreshClientCount() {
         _clientCount.value = server.nativeGetClientCount()
+    }
+
+    /**
+     * Poll the native compositor for the current Wayland client count,
+     * updating the [clientCount] StateFlow and returning the new value.
+     *
+     * This is a convenience over calling [refreshClientCount] followed by
+     * reading [clientCount].value — it avoids the two-step pattern that
+     * could break if refreshClientCount were ever made asynchronous.
+     *
+     * Safe to call after the compositor has stopped — returns 0 when the
+     * native server is no longer running.
+     */
+    fun getClientCount(): Int {
+        val count = server.nativeGetClientCount()
+        _clientCount.value = count
+        return count
     }
 
     fun resizeOutput(width: Int, height: Int) {

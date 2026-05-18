@@ -7,5 +7,8 @@ enum class CompositorState {
     PAUSED,
     STOPPING,
     STOPPED,
-    ERROR
+    ERROR;
+
+    /** True when the compositor is active enough to have connected Wayland clients. */
+    val isRunning: Boolean get() = this == RUNNING || this == PAUSED
 }
