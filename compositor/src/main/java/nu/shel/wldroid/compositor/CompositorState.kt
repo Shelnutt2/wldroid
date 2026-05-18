@@ -4,6 +4,7 @@ enum class CompositorState {
     IDLE,
     STARTING,
     RUNNING,
+    PAUSED,
     STOPPING,
     STOPPED,
     ERROR
