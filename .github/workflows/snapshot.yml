@@ -36,18 +36,24 @@ jobs:
             libwayland-dev \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
           pip3 install meson
+      - name: Compute snapshot version
+        id: version
+        run: |
+          RAW=$(git describe --tags --always --first-parent)
+          VERSION="${RAW#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Snapshot base version: $VERSION"
       - name: Setup Meson subprojects
         run: bash scripts/setup-meson-subprojects.sh
       - name: Build all native components
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           bash scripts/build-all-native.sh
-      - name: Restore clean git state
-        run: git checkout -- .
       - name: Publish snapshots to Maven Central
         run: |
           ./gradlew publishToMavenCentral \
             -Psnapshot \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
             -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -58,6 +64,7 @@ jobs:
         run: |
           ./gradlew publishAllPublicationsToGitHubPackagesRepository \
             -Psnapshot \
+            -PoverrideVersion=${{ steps.version.outputs.version }} \
             -PskipCompositor=true -PskipProot=true -PskipVirgl=true -PskipShims=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
