@@ -3,6 +3,7 @@ package nu.shel.wldroid.proot
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -36,50 +38,89 @@ class EnvironmentRegistry(
         )
 
     private val stateFlows = ConcurrentHashMap<String, MutableStateFlow<EnvironmentState>>()
+    private val creationJobs = ConcurrentHashMap<String, Job>()
 
     /**
      * Creates a new environment from the given [config].
      *
      * Downloads, extracts, and configures the rootfs, updating the
-     * environment state flow throughout the process.
+     * environment state flow throughout the process. The work is launched
+     * in this registry's own [scope] so it survives caller lifecycle
+     * changes (e.g. screen sleep).
+     *
+     * If a creation job for the same environment [name][EnvironmentConfig.name]
+     * is already running, the existing [StateFlow] is returned without
+     * starting a duplicate.
      *
      * @param config Configuration for the new environment
-     * @return The created [RootfsEnvironment]
-     * @throws IllegalStateException if creation fails
+     * @return A [StateFlow] tracking the creation progress
      */
-    suspend fun create(config: EnvironmentConfig): RootfsEnvironment {
-        val id = UUID.randomUUID().toString()
-        val stateFlow = getOrCreateStateFlow(id)
-
-        try {
-            rootfsManager.createEnvironment(
-                id = id,
-                name = config.name,
-                distro = config.distro,
-            ).collect { progress ->
-                stateFlow.value = when (progress.status) {
-                    RootfsStatus.DOWNLOADING -> EnvironmentState.DOWNLOADING
-                    RootfsStatus.EXTRACTING -> EnvironmentState.EXTRACTING
-                    RootfsStatus.INSTALLING -> EnvironmentState.INSTALLING
-                    RootfsStatus.READY -> EnvironmentState.IDLE
-                    RootfsStatus.ERROR -> EnvironmentState.ERROR
+    fun create(config: EnvironmentConfig): StateFlow<EnvironmentState> {
+        // Deduplicate by environment name — return existing flow if a job is active.
+        synchronized(creationJobs) {
+            val existingJob = creationJobs[config.name]
+            if (existingJob != null && existingJob.isActive) {
+                // Find the state flow for the in-progress creation.
+                val existingFlow = stateFlows.values.firstOrNull {
+                    it.value != EnvironmentState.IDLE && it.value != EnvironmentState.ERROR
+                }
+                if (existingFlow != null) {
+                    return existingFlow.asStateFlow()
                 }
             }
-        } catch (e: Exception) {
-            stateFlow.value = EnvironmentState.ERROR
-            throw IllegalStateException("Failed to create environment '${config.name}'", e)
-        }
 
-        if (stateFlow.value == EnvironmentState.ERROR) {
-            throw IllegalStateException(
-                "Environment creation failed for '${config.name}' (id=$id)",
-            )
-        }
+            val id = UUID.randomUUID().toString()
+            val stateFlow = getOrCreateStateFlow(id)
+            val creatingMarker = File(rootfsManager.getEnvironmentDir(id), ".creating")
 
-        return rootfsManager.getEnvironments().first().firstOrNull { it.id == id }
-            ?: throw IllegalStateException(
-                "Environment '${config.name}' (id=$id) not found in store after creation",
-            )
+            val job = scope.launch(Dispatchers.IO) {
+                try {
+                    // Write .creating marker so interrupted installs can be
+                    // cleaned up on next startup.
+                    rootfsManager.getEnvironmentDir(id).mkdirs()
+                    creatingMarker.createNewFile()
+
+                    // Clean up a partial prior extraction for this id (no
+                    // etc/os-release means extraction didn't finish).
+                    val envDir = rootfsManager.getEnvironmentDir(id)
+                    if (envDir.exists() && !File(envDir, "etc/os-release").exists()) {
+                        // Keep the directory itself but clear contents for fresh extraction.
+                        envDir.listFiles()?.forEach { child ->
+                            if (child.name != ".creating") child.deleteRecursively()
+                        }
+                    }
+
+                    rootfsManager.createEnvironment(
+                        id = id,
+                        name = config.name,
+                        distro = config.distro,
+                    ).collect { progress ->
+                        stateFlow.value = when (progress.status) {
+                            RootfsStatus.DOWNLOADING -> EnvironmentState.DOWNLOADING
+                            RootfsStatus.EXTRACTING -> EnvironmentState.EXTRACTING
+                            RootfsStatus.INSTALLING -> EnvironmentState.INSTALLING
+                            RootfsStatus.READY -> EnvironmentState.IDLE
+                            RootfsStatus.ERROR -> EnvironmentState.ERROR
+                        }
+                    }
+
+                    if (stateFlow.value == EnvironmentState.ERROR) {
+                        Log.e(TAG, "Environment creation failed for '${config.name}' (id=$id)")
+                    } else {
+                        Log.i(TAG, "Environment '${config.name}' (id=$id) created successfully")
+                    }
+                } catch (e: Exception) {
+                    stateFlow.value = EnvironmentState.ERROR
+                    Log.e(TAG, "Failed to create environment '${config.name}'", e)
+                } finally {
+                    creatingMarker.delete()
+                    creationJobs.remove(config.name)
+                }
+            }
+
+            creationJobs[config.name] = job
+            return stateFlow.asStateFlow()
+        }
     }
 
     /**
