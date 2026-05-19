@@ -58,23 +58,30 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorSession
+import nu.shel.wldroid.compositor.CompositorState
 import nu.shel.wldroid.launcher.DesktopAppPreset
 import nu.shel.wldroid.launcher.DesktopLauncher
 import nu.shel.wldroid.launcher.DesktopLauncherConfig
 import nu.shel.wldroid.launcher.DesktopLauncherState
+import nu.shel.wldroid.launcher.WldroidService
+import nu.shel.wldroid.proot.DistroTemplate
+import nu.shel.wldroid.proot.EnvironmentConfig
 import nu.shel.wldroid.proot.EnvironmentRegistry
+import nu.shel.wldroid.proot.EnvironmentState
 import nu.shel.wldroid.proot.ProotExecutor
 import nu.shel.wldroid.proot.RootfsEnvironment
 import nu.shel.wldroid.shims.ShimExtractor
 import nu.shel.wldroid.ui.CompositorSurface
 import nu.shel.wldroid.ui.CompositorSurfaceState
 import nu.shel.wldroid.ui.InputMode
-import nu.shel.wldroid.compositor.CompositorState
+import nu.shel.wldroid.ui.SetupScreen
+import nu.shel.wldroid.ui.SetupState
 import nu.shel.wldroid.virgl.GpuMode
 import nu.shel.wldroid.virgl.VirglSession
 
@@ -110,6 +117,11 @@ class DesktopViewModel @Inject constructor(
     val gpuMode get() = launcher.gpuMode
     val compositorState get() = compositorSession.state
 
+    // ── Setup state ──────────────────────────────────────────────────────
+
+    private val _setupState = MutableStateFlow<SetupState>(SetupState.Idle)
+    val setupState: StateFlow<SetupState> = _setupState.asStateFlow()
+
     init {
         // Surface compositor errors into the launcher's process output stream.
         viewModelScope.launch {
@@ -120,6 +132,51 @@ class DesktopViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Start a default environment creation and track its progress via [setupState].
+     */
+    fun createDefaultEnvironment() {
+        val config = EnvironmentConfig(
+            name = "Default",
+            distro = DistroTemplate.DEBIAN_TRIXIE,
+        )
+        val progressFlow = environmentRegistry.create(config)
+        viewModelScope.launch {
+            progressFlow.collect { progress ->
+                _setupState.value = progress.toSetupState()
+            }
+        }
+    }
+
+    /** Cancel or reset the setup flow (returns to Idle). */
+    fun cancelSetup() {
+        _setupState.value = SetupState.Idle
+    }
+
+    /** Retry environment creation after an error. */
+    fun retrySetup() {
+        _setupState.value = SetupState.Idle
+        createDefaultEnvironment()
+    }
+
+    // ── Service-aware session methods ────────────────────────────────────
+
+    fun startSessionViaService(service: WldroidService, env: RootfsEnvironment, preset: DesktopAppPreset) {
+        service.startSession(compositorSession, launcher, env.name)
+        launcher.launchPreset(env, preset, viewModelScope)
+    }
+
+    fun startCustomViaService(service: WldroidService, env: RootfsEnvironment, command: String) {
+        service.startSession(compositorSession, launcher, env.name)
+        launcher.launch(env, command.split(" "), scope = viewModelScope)
+    }
+
+    fun stopViaService(service: WldroidService) {
+        service.stopSession()
+    }
+
+    // ── Legacy (non-service) methods kept for fallback ───────────────────
 
     fun launch(env: RootfsEnvironment, preset: DesktopAppPreset) {
         launcher.launchPreset(env, preset, viewModelScope)
@@ -135,16 +192,45 @@ class DesktopViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        runBlocking(Dispatchers.IO) { launcher.stop() }
+        // Service owns the session lifecycle — do NOT stop the launcher here.
+        // Already-running external processes (proot) will continue.
     }
+}
+
+/** Map [nu.shel.wldroid.proot.EnvironmentProgress] to [SetupState]. */
+private fun nu.shel.wldroid.proot.EnvironmentProgress.toSetupState(): SetupState = when (state) {
+    EnvironmentState.DOWNLOADING -> SetupState.Downloading(
+        progress = if (progress >= 0f) progress else -1f,
+        message = message.ifEmpty { "Downloading environment…" },
+    )
+    EnvironmentState.EXTRACTING -> SetupState.Extracting(
+        progress = if (progress >= 0f) progress else -1f,
+        message = message.ifEmpty { "Extracting rootfs…" },
+    )
+    EnvironmentState.INSTALLING -> SetupState.Installing(
+        message = message.ifEmpty { "Installing packages…" },
+    )
+    EnvironmentState.RUNNING -> SetupState.Launching(
+        message = message.ifEmpty { "Finalizing environment…" },
+    )
+    EnvironmentState.IDLE -> SetupState.Running
+    EnvironmentState.STOPPED -> SetupState.Running
+    EnvironmentState.STOPPING -> SetupState.Launching(message = "Stopping…")
+    EnvironmentState.ERROR -> SetupState.Error(
+        message = message.ifEmpty { "Environment setup failed" },
+        canRetry = true,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DesktopScreen(
+    serviceFlow: StateFlow<WldroidService?>,
     viewModel: DesktopViewModel = hiltViewModel(),
 ) {
+    val service by serviceFlow.collectAsState()
     val environments by viewModel.environments.collectAsState()
+    val setupState by viewModel.setupState.collectAsState()
     val launcherState by viewModel.launcherState.collectAsState()
     val gpuMode by viewModel.gpuMode.collectAsState()
     val compositorState by viewModel.compositorState.collectAsState()
@@ -158,6 +244,13 @@ fun DesktopScreen(
     var envDropdownExpanded by remember { mutableStateOf(false) }
     var showKeyboard by remember { mutableStateOf(false) }
     val view = LocalView.current
+
+    // Auto-trigger environment creation when no environments exist.
+    LaunchedEffect(environments, setupState) {
+        if (environments.isEmpty() && setupState == SetupState.Idle) {
+            viewModel.createDefaultEnvironment()
+        }
+    }
 
     // Auto-select first environment when available.
     LaunchedEffect(environments) {
@@ -183,6 +276,16 @@ fun DesktopScreen(
                     logListState.animateScrollToItem(size - 1)
                 }
             }
+    }
+
+    // Show SetupScreen when no environments exist or setup is in progress.
+    if (environments.isEmpty() || setupState.isActive || setupState is SetupState.Error) {
+        SetupScreen(
+            state = setupState,
+            onCancel = { viewModel.cancelSetup() },
+            onRetry = { viewModel.retrySetup() },
+        )
+        return
     }
 
     val surfaceState = remember(viewModel.compositorConfig, viewModel.compositorSession) {
@@ -323,7 +426,10 @@ fun DesktopScreen(
             ) {
                 if (launcherState.isActive) {
                     Button(
-                        onClick = { viewModel.stop() },
+                        onClick = {
+                            val svc = service
+                            if (svc != null) viewModel.stopViaService(svc) else viewModel.stop()
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
                         ),
@@ -335,11 +441,14 @@ fun DesktopScreen(
                     Button(
                         onClick = {
                             val env = selectedEnv ?: return@Button
+                            val svc = service
                             if (isCustom && customCommand.isNotBlank()) {
-                                viewModel.launchCustom(env, customCommand)
+                                if (svc != null) viewModel.startCustomViaService(svc, env, customCommand)
+                                else viewModel.launchCustom(env, customCommand)
                             } else {
                                 val preset = selectedPreset ?: return@Button
-                                viewModel.launch(env, preset)
+                                if (svc != null) viewModel.startSessionViaService(svc, env, preset)
+                                else viewModel.launch(env, preset)
                             }
                         },
                         enabled = selectedEnv != null &&
