@@ -3,6 +3,7 @@ package nu.shel.wldroid.proot
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +39,9 @@ class EnvironmentRegistry(
         )
 
     private val stateFlows = ConcurrentHashMap<String, MutableStateFlow<EnvironmentProgress>>()
-    private val creationJobs = ConcurrentHashMap<String, Job>()
+
+    private data class CreationEntry(val job: Job, val flowId: String)
+    private val creationJobs = ConcurrentHashMap<String, CreationEntry>()
 
     /**
      * Service-scoped [CoroutineScope] used for long-running creation work.
@@ -50,13 +53,14 @@ class EnvironmentRegistry(
      * Call [setServiceScope] from a bound service's `onCreate` and
      * [clearServiceScope] from `onDestroy`.
      */
+    @Volatile
     private var serviceScope: CoroutineScope? = null
 
     /**
      * Binds a service-owned [CoroutineScope] for long-running work.
      *
-     * While set, [create] launches its coroutine in [scope] instead of the
-     * registry's default scope so that download/extraction survives the
+     * While set, [create] launches its coroutine in the service scope instead
+     * of the registry's default scope so that download/extraction survives the
      * Activity lifecycle as long as the foreground service is alive.
      */
     fun setServiceScope(scope: CoroutineScope?) {
@@ -88,12 +92,9 @@ class EnvironmentRegistry(
     fun create(config: EnvironmentConfig): StateFlow<EnvironmentProgress> {
         // Deduplicate by environment name — return existing flow if a job is active.
         synchronized(creationJobs) {
-            val existingJob = creationJobs[config.name]
-            if (existingJob != null && existingJob.isActive) {
-                // Find the state flow for the in-progress creation.
-                val existingFlow = stateFlows.values.firstOrNull {
-                    it.value.state != EnvironmentState.IDLE && it.value.state != EnvironmentState.ERROR
-                }
+            val existingEntry = creationJobs[config.name]
+            if (existingEntry != null && existingEntry.job.isActive) {
+                val existingFlow = stateFlows[existingEntry.flowId]
                 if (existingFlow != null) {
                     return existingFlow.asStateFlow()
                 }
@@ -144,6 +145,12 @@ class EnvironmentRegistry(
                     } else {
                         Log.i(TAG, "Environment '${config.name}' (id=$id) created successfully")
                     }
+                } catch (e: CancellationException) {
+                    stateFlow.value = EnvironmentProgress(
+                        state = EnvironmentState.ERROR,
+                        message = "Setup was interrupted",
+                    )
+                    throw e // re-throw to let coroutine machinery handle cancellation
                 } catch (e: Exception) {
                     stateFlow.value = EnvironmentProgress(EnvironmentState.ERROR, message = e.message ?: "")
                     Log.e(TAG, "Failed to create environment '${config.name}'", e)
@@ -153,7 +160,7 @@ class EnvironmentRegistry(
                 }
             }
 
-            creationJobs[config.name] = job
+            creationJobs[config.name] = CreationEntry(job, id)
             return stateFlow.asStateFlow()
         }
     }
