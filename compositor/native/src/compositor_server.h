@@ -58,6 +58,8 @@ struct compositor_server {
     /* Text input / IME (created/destroyed by text_input_handler) */
     struct wl_global *text_input_manager;
     int ime_request_pipe[2];         /* [0]=read (Kotlin side), [1]=write (compositor) */
+    int text_input_pipe[2];          /* [0]=read, [1]=write; JNI thread → compositor thread */
+    struct wl_event_source *text_input_event_source;
 
     /* Pause/resume signaling (UI thread → compositor thread via pipe) */
     bool paused;

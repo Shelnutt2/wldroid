@@ -8,6 +8,8 @@
 #ifndef TEXT_INPUT_HANDLER_H
 #define TEXT_INPUT_HANDLER_H
 
+#include <stdbool.h>
+
 struct compositor_server;
 
 /**
@@ -30,6 +32,9 @@ void text_input_handler_destroy(struct compositor_server *server);
  */
 void text_input_handle_commit_text(struct compositor_server *server,
                                     const char *text);
+
+/** Whether a zwp_text_input_v3 resource is currently enabled. */
+bool text_input_has_active_text_input(void);
 
 /** Notify the compositor that the Android soft keyboard was shown. */
 void text_input_handle_ime_shown(struct compositor_server *server);

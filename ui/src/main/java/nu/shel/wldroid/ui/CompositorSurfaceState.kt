@@ -17,6 +17,12 @@ class CompositorSurfaceState(
     val session: CompositorSession,
     val config: CompositorConfig,
 ) {
+    private val _viewport = MutableStateFlow(ViewportTransform())
+
+    /** Host-side viewport transform. This does not alter the Wayland output size. */
+    val viewport: StateFlow<ViewportTransform>
+        get() = _viewport.asStateFlow()
+
     /** Current lifecycle state of the compositor. */
     val compositorState: StateFlow<CompositorState>
         get() = session.state
@@ -38,6 +44,45 @@ class CompositorSurfaceState(
     /** Update the keyboard visibility tracking. */
     internal fun setKeyboardVisible(visible: Boolean) {
         _isKeyboardVisible.value = visible
+    }
+
+    /** Configure viewport scale limits. */
+    fun setViewportScaleBounds(minScale: Float, maxScale: Float) {
+        updateViewport { it.withScaleBounds(minScale, maxScale) }
+    }
+
+    /** Reset host zoom/pan without changing the Wayland output size. */
+    fun resetZoom() {
+        updateViewport { it.reset() }
+    }
+
+    /** Zoom the host viewport around a focal point in Android view pixels. */
+    fun zoomBy(factor: Float, focalX: Float, focalY: Float) {
+        updateViewport { it.zoomBy(factor, focalX, focalY) }
+    }
+
+    /** Pan the host viewport by Android view pixels. */
+    fun panBy(dx: Float, dy: Float) {
+        updateViewport { it.panBy(dx, dy) }
+    }
+
+    /** Map an Android view coordinate to the fixed Wayland guest/output coordinate space. */
+    fun mapViewToGuest(x: Float, y: Float): GuestPoint = _viewport.value.mapViewToGuest(x, y)
+
+    internal fun setViewportViewSize(width: Int, height: Int) {
+        updateViewport { it.withViewSize(width, height) }
+    }
+
+    internal fun setViewportContentSize(width: Int, height: Int) {
+        updateViewport { it.withContentSize(width, height) }
+    }
+
+    internal fun setImeBottomInset(heightPx: Int) {
+        updateViewport { it.withImeBottomInset(heightPx) }
+    }
+
+    private fun updateViewport(transform: (ViewportTransform) -> ViewportTransform) {
+        _viewport.value = transform(_viewport.value)
     }
 }
 

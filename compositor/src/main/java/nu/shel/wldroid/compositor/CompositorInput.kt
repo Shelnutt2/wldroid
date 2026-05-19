@@ -37,4 +37,6 @@ class CompositorInput(private val server: CompositorServer) {
     }
 
     fun getImePipeFd(): Int = server.nativeGetImePipeFd()
+
+    fun hasActiveTextInput(): Boolean = server.nativeHasActiveTextInput()
 }

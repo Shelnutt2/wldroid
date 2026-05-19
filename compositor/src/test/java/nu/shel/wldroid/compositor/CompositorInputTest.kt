@@ -109,14 +109,22 @@ class CompositorInputTest {
     }
 
     @Test
-    fun `CompositorInput has exactly 9 public methods`() {
+    fun `hasActiveTextInput method exists and returns Boolean`() {
+        val method = findMethod("hasActiveTextInput")
+        assertNotNull("hasActiveTextInput should exist", method)
+        assertEquals(0, method!!.parameterTypes.size)
+        assertEquals(Boolean::class.java, method.returnType)
+    }
+
+    @Test
+    fun `CompositorInput has exactly 10 public methods`() {
         // touch, key, pointer motion, pointer button, pointer scroll,
-        // commitText, imeShown, imeHidden, getImePipeFd
+        // commitText, imeShown, imeHidden, getImePipeFd, hasActiveTextInput
         val publicMethods = CompositorInput::class.java.declaredMethods
             .filter { java.lang.reflect.Modifier.isPublic(it.modifiers) }
         assertEquals(
-            "Expected 9 public methods on CompositorInput",
-            9,
+            "Expected 10 public methods on CompositorInput",
+            10,
             publicMethods.size,
         )
     }

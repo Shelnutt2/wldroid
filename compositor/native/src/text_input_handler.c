@@ -17,6 +17,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <pthread.h>
 #include <android/log.h>
 
 #include <wayland-server-core.h>
@@ -113,9 +115,43 @@ static void build_ascii_table(struct wlr_keyboard *kb) {
 /* KEY_LEFTSHIFT evdev keycode */
 #define EVDEV_KEY_LEFTSHIFT 42
 
+static void ensure_keyboard_focus(struct compositor_server *server) {
+    if (!server || !server->seat || !server->keyboard) return;
+    if (server->seat->keyboard_state.focused_surface) return;
+
+    struct compositor_toplevel *ct;
+    wl_list_for_each(ct, &server->toplevels, link) {
+        if (!ct->rendering_only && ct->toplevel && ct->toplevel->base) {
+            wlr_seat_keyboard_notify_enter(server->seat, ct->toplevel->base->surface,
+                server->keyboard->keycodes, server->keyboard->num_keycodes,
+                &server->keyboard->modifiers);
+            return;
+        }
+    }
+
+    wl_list_for_each(ct, &server->toplevels, link) {
+        if (ct->toplevel && ct->toplevel->base) {
+            wlr_seat_keyboard_notify_enter(server->seat, ct->toplevel->base->surface,
+                server->keyboard->keycodes, server->keyboard->num_keycodes,
+                &server->keyboard->modifiers);
+            return;
+        }
+    }
+}
+
+static void notify_synthetic_key(struct compositor_server *server,
+                                 struct wlr_keyboard_key_event *ev) {
+    wlr_keyboard_notify_key(server->keyboard, ev);
+    if (server->seat) {
+        wlr_seat_keyboard_notify_key(server->seat, ev->time_msec,
+                                     ev->keycode, ev->state);
+    }
+}
+
 static void emit_synthetic_keys(struct compositor_server *server,
                                  const char *text) {
     if (!server->keyboard) return;
+    ensure_keyboard_focus(server);
     if (!ascii_table_built) build_ascii_table(server->keyboard);
 
     uint32_t timestamp = 0;
@@ -169,26 +205,26 @@ static void emit_synthetic_keys(struct compositor_server *server,
         if (ascii_to_key[codepoint].needs_shift) {
             ev.keycode = EVDEV_KEY_LEFTSHIFT;
             ev.state = WL_KEYBOARD_KEY_STATE_PRESSED;
-            wlr_keyboard_notify_key(server->keyboard, &ev);
+            notify_synthetic_key(server, &ev);
         }
 
         /* Key press */
         ev.keycode = evdev_kc;
         ev.state = WL_KEYBOARD_KEY_STATE_PRESSED;
         ev.time_msec = timestamp++;
-        wlr_keyboard_notify_key(server->keyboard, &ev);
+        notify_synthetic_key(server, &ev);
 
         /* Key release */
         ev.state = WL_KEYBOARD_KEY_STATE_RELEASED;
         ev.time_msec = timestamp++;
-        wlr_keyboard_notify_key(server->keyboard, &ev);
+        notify_synthetic_key(server, &ev);
 
         /* Release Shift */
         if (ascii_to_key[codepoint].needs_shift) {
             ev.keycode = EVDEV_KEY_LEFTSHIFT;
             ev.state = WL_KEYBOARD_KEY_STATE_RELEASED;
             ev.time_msec = timestamp++;
-            wlr_keyboard_notify_key(server->keyboard, &ev);
+            notify_synthetic_key(server, &ev);
         }
     }
 }
@@ -203,11 +239,35 @@ struct text_input {
     struct wl_list link;  /* in text_inputs list */
     bool enabled;
     uint32_t serial;
+
+    bool pending_cursor_rectangle_set;
+    int32_t pending_cursor_x;
+    int32_t pending_cursor_y;
+    int32_t pending_cursor_width;
+    int32_t pending_cursor_height;
+
+    bool cursor_rectangle_set;
+    int32_t cursor_x;
+    int32_t cursor_y;
+    int32_t cursor_width;
+    int32_t cursor_height;
 };
 
 static struct wl_list text_inputs;           /* all text_input resources */
 static struct text_input *active_text_input = NULL;
 static struct compositor_server *g_text_input_server = NULL;
+
+struct pending_text_commit {
+    char *text;
+    struct pending_text_commit *next;
+};
+
+static pthread_mutex_t pending_text_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct pending_text_commit *pending_text_head = NULL;
+static struct pending_text_commit *pending_text_tail = NULL;
+
+static int on_text_input_event(int fd, uint32_t mask, void *data);
+static void clear_pending_text_commits(void);
 
 /* ---- Pipe helpers: signal Kotlin to show/hide IME ---- */
 
@@ -289,14 +349,33 @@ static void ti_set_cursor_rectangle(struct wl_client *client,
                                      struct wl_resource *resource,
                                      int32_t x, int32_t y,
                                      int32_t width, int32_t height) {
-    (void)client; (void)resource;
-    (void)x; (void)y; (void)width; (void)height;
+    (void)client;
+    struct text_input *ti = wl_resource_get_user_data(resource);
+    if (!ti) return;
+
+    ti->pending_cursor_rectangle_set = true;
+    ti->pending_cursor_x = x;
+    ti->pending_cursor_y = y;
+    ti->pending_cursor_width = width;
+    ti->pending_cursor_height = height;
 }
 
 static void ti_commit(struct wl_client *client,
                        struct wl_resource *resource) {
-    (void)client; (void)resource;
-    /* Client committed its pending state — nothing to do server-side. */
+    (void)client;
+    struct text_input *ti = wl_resource_get_user_data(resource);
+    if (!ti) return;
+
+    if (ti->pending_cursor_rectangle_set) {
+        ti->cursor_rectangle_set = true;
+        ti->cursor_x = ti->pending_cursor_x;
+        ti->cursor_y = ti->pending_cursor_y;
+        ti->cursor_width = ti->pending_cursor_width;
+        ti->cursor_height = ti->pending_cursor_height;
+        ti->pending_cursor_rectangle_set = false;
+        LOGD("text-input-v3: cursor rectangle %d,%d %dx%d",
+             ti->cursor_x, ti->cursor_y, ti->cursor_width, ti->cursor_height);
+    }
 }
 
 /** Called when the text_input wl_resource is destroyed. */
@@ -380,6 +459,10 @@ static void bind_manager(struct wl_client *client, void *data,
 int text_input_handler_init(struct compositor_server *server) {
     wl_list_init(&text_inputs);
     g_text_input_server = server;
+    server->ime_request_pipe[0] = -1;
+    server->ime_request_pipe[1] = -1;
+    server->text_input_pipe[0] = -1;
+    server->text_input_pipe[1] = -1;
 
     /* IME request pipe: compositor writes 'S'/'H', Kotlin reads. */
     if (pipe2(server->ime_request_pipe, O_CLOEXEC | O_NONBLOCK) != 0) {
@@ -387,15 +470,37 @@ int text_input_handler_init(struct compositor_server *server) {
         return -1;
     }
 
+    /* Text commit pipe: JNI thread queues text, compositor event loop sends protocol events. */
+    if (pipe2(server->text_input_pipe, O_CLOEXEC | O_NONBLOCK) != 0) {
+        wlr_log(WLR_ERROR, "text_input: text pipe2 failed");
+        close(server->ime_request_pipe[0]);
+        close(server->ime_request_pipe[1]);
+        server->ime_request_pipe[0] = -1;
+        server->ime_request_pipe[1] = -1;
+        return -1;
+    }
+    struct wl_event_loop *ev_loop = wl_display_get_event_loop(server->wl_display);
+    server->text_input_event_source = wl_event_loop_add_fd(
+        ev_loop, server->text_input_pipe[0], WL_EVENT_READABLE,
+        on_text_input_event, server);
+
     /* Register zwp_text_input_manager_v3 global (version 1). */
     server->text_input_manager = wl_global_create(server->wl_display,
         &zwp_text_input_manager_v3_interface, 1, server, bind_manager);
     if (!server->text_input_manager) {
         wlr_log(WLR_ERROR, "text_input: wl_global_create failed");
+        if (server->text_input_event_source) {
+            wl_event_source_remove(server->text_input_event_source);
+            server->text_input_event_source = NULL;
+        }
         close(server->ime_request_pipe[0]);
         close(server->ime_request_pipe[1]);
+        close(server->text_input_pipe[0]);
+        close(server->text_input_pipe[1]);
         server->ime_request_pipe[0] = -1;
         server->ime_request_pipe[1] = -1;
+        server->text_input_pipe[0] = -1;
+        server->text_input_pipe[1] = -1;
         return -1;
     }
 
@@ -420,27 +525,115 @@ void text_input_handler_destroy(struct compositor_server *server) {
         server->ime_request_pipe[0] = -1;
         server->ime_request_pipe[1] = -1;
     }
+    if (server->text_input_event_source) {
+        wl_event_source_remove(server->text_input_event_source);
+        server->text_input_event_source = NULL;
+    }
+    if (server->text_input_pipe[0] >= 0) {
+        close(server->text_input_pipe[0]);
+        close(server->text_input_pipe[1]);
+        server->text_input_pipe[0] = -1;
+        server->text_input_pipe[1] = -1;
+    }
+    clear_pending_text_commits();
 
     active_text_input = NULL;
     g_text_input_server = NULL;
 }
 
-void text_input_handle_commit_text(struct compositor_server *server,
-                                    const char *text) {
+static void dispatch_commit_text(struct compositor_server *server,
+                                 const char *text) {
     if (!text || !*text) return;
 
     if (active_text_input && active_text_input->enabled) {
-        /* Send via text-input-v3 protocol */
+        /* Send via text-input-v3 protocol on the compositor event loop. */
         zwp_text_input_v3_send_commit_string(active_text_input->resource, text);
         active_text_input->serial++;
         zwp_text_input_v3_send_done(active_text_input->resource,
                                      active_text_input->serial);
         LOGD("Committed text via text-input-v3 (%zu bytes)", strlen(text));
     } else {
-        /* Fallback: inject synthetic keyboard events */
+        /* Fallback: inject synthetic keyboard events through the seat path. */
         emit_synthetic_keys(server, text);
         LOGD("Committed text via synthetic keys (%zu bytes)", strlen(text));
     }
+}
+
+static void enqueue_text_commit(const char *text) {
+    struct pending_text_commit *commit = calloc(1, sizeof(*commit));
+    if (!commit) return;
+    commit->text = strdup(text);
+    if (!commit->text) {
+        free(commit);
+        return;
+    }
+
+    pthread_mutex_lock(&pending_text_mutex);
+    if (pending_text_tail) {
+        pending_text_tail->next = commit;
+    } else {
+        pending_text_head = commit;
+    }
+    pending_text_tail = commit;
+    pthread_mutex_unlock(&pending_text_mutex);
+}
+
+static struct pending_text_commit *pop_text_commit(void) {
+    pthread_mutex_lock(&pending_text_mutex);
+    struct pending_text_commit *commit = pending_text_head;
+    if (commit) {
+        pending_text_head = commit->next;
+        if (!pending_text_head) {
+            pending_text_tail = NULL;
+        }
+    }
+    pthread_mutex_unlock(&pending_text_mutex);
+    return commit;
+}
+
+static void clear_pending_text_commits(void) {
+    struct pending_text_commit *commit;
+    while ((commit = pop_text_commit()) != NULL) {
+        free(commit->text);
+        free(commit);
+    }
+}
+
+static int on_text_input_event(int fd, uint32_t mask, void *data) {
+    (void)mask;
+    struct compositor_server *server = data;
+
+    char buf[64];
+    ssize_t n;
+    do {
+        n = read(fd, buf, sizeof(buf));
+    } while (n > 0);
+    if (n < 0 && errno != EAGAIN) {
+        wlr_log(WLR_ERROR, "text input pipe read error: %s", strerror(errno));
+        return 0;
+    }
+
+    struct pending_text_commit *commit;
+    while ((commit = pop_text_commit()) != NULL) {
+        dispatch_commit_text(server, commit->text);
+        free(commit->text);
+        free(commit);
+    }
+    return 0;
+}
+
+void text_input_handle_commit_text(struct compositor_server *server,
+                                    const char *text) {
+    if (!server || !text || !*text) return;
+    enqueue_text_commit(text);
+    if (server->text_input_pipe[1] >= 0) {
+        char c = 't';
+        (void)write(server->text_input_pipe[1], &c, 1);
+    }
+}
+
+bool text_input_has_active_text_input(void) {
+    return active_text_input && active_text_input->enabled;
 }
 
 void text_input_handle_ime_shown(struct compositor_server *server) {
