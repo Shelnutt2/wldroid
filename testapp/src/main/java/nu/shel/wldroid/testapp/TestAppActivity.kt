@@ -62,6 +62,7 @@ class TestAppActivity : ComponentActivity() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             _service.value = (binder as WldroidService.LocalBinder).getService()
+            serviceScopeForRegistry?.cancel() // cancel old scope on reconnect
             serviceScopeForRegistry = CoroutineScope(SupervisorJob() + Dispatchers.Main)
             environmentRegistry.setServiceScope(serviceScopeForRegistry)
         }
@@ -77,15 +78,16 @@ class TestAppActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Request notification permission on Android 13+ before starting the
+        // foreground service so the notification can display immediately.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         // Start and bind the foreground service.
         val serviceIntent = Intent(this, WldroidService::class.java)
         startForegroundService(serviceIntent)
         bindService(serviceIntent, serviceConnection, BIND_AUTO_CREATE)
-
-        // Request notification permission on Android 13+.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
 
         enableEdgeToEdge()
         setContent {

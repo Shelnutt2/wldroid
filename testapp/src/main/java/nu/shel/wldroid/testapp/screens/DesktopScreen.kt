@@ -58,6 +58,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -121,6 +122,11 @@ class DesktopViewModel @Inject constructor(
 
     private val _setupState = MutableStateFlow<SetupState>(SetupState.Idle)
     val setupState: StateFlow<SetupState> = _setupState.asStateFlow()
+    private var setupCollectionJob: Job? = null
+
+    /** True when the user explicitly cancelled setup — prevents auto-re-trigger. */
+    var userCancelled: Boolean = false
+        private set
 
     init {
         // Surface compositor errors into the launcher's process output stream.
@@ -137,12 +143,14 @@ class DesktopViewModel @Inject constructor(
      * Start a default environment creation and track its progress via [setupState].
      */
     fun createDefaultEnvironment() {
+        userCancelled = false
+        setupCollectionJob?.cancel()
         val config = EnvironmentConfig(
             name = "Default",
             distro = DistroTemplate.DEBIAN_TRIXIE,
         )
         val progressFlow = environmentRegistry.create(config)
-        viewModelScope.launch {
+        setupCollectionJob = viewModelScope.launch {
             progressFlow.collect { progress ->
                 _setupState.value = progress.toSetupState()
             }
@@ -151,6 +159,8 @@ class DesktopViewModel @Inject constructor(
 
     /** Cancel or reset the setup flow (returns to Idle). */
     fun cancelSetup() {
+        userCancelled = true
+        setupCollectionJob?.cancel()
         _setupState.value = SetupState.Idle
     }
 
@@ -214,8 +224,8 @@ private fun nu.shel.wldroid.proot.EnvironmentProgress.toSetupState(): SetupState
         message = message.ifEmpty { "Finalizing environment…" },
     )
     EnvironmentState.IDLE -> SetupState.Running
-    EnvironmentState.STOPPED -> SetupState.Running
-    EnvironmentState.STOPPING -> SetupState.Launching(message = "Stopping…")
+    EnvironmentState.STOPPED -> SetupState.Idle
+    EnvironmentState.STOPPING -> SetupState.Installing(message = "Finishing up…")
     EnvironmentState.ERROR -> SetupState.Error(
         message = message.ifEmpty { "Environment setup failed" },
         canRetry = true,
@@ -247,7 +257,7 @@ fun DesktopScreen(
 
     // Auto-trigger environment creation when no environments exist.
     LaunchedEffect(environments, setupState) {
-        if (environments.isEmpty() && setupState == SetupState.Idle) {
+        if (environments.isEmpty() && setupState == SetupState.Idle && !viewModel.userCancelled) {
             viewModel.createDefaultEnvironment()
         }
     }
@@ -263,8 +273,13 @@ fun DesktopScreen(
     LaunchedEffect(Unit) {
         viewModel.processOutput.collect { line ->
             logLines.add(line)
-            // Keep last 500 lines.
-            if (logLines.size > 500) logLines.removeAt(0)
+            // Trim to 450 when exceeding 500 to avoid frequent O(n) removals.
+            if (logLines.size > 500) {
+                val excess = logLines.size - 450
+                val trimmed = logLines.subList(excess, logLines.size).toList()
+                logLines.clear()
+                logLines.addAll(trimmed)
+            }
         }
     }
 
