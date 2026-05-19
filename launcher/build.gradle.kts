@@ -36,6 +36,7 @@ dependencies {
     implementation(libs.coroutines.android)
     api(libs.lifecycle.runtime.ktx)
     implementation(libs.annotation)
+    implementation(libs.core.ktx)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
