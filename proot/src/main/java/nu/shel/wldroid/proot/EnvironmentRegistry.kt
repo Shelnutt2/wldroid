@@ -37,8 +37,38 @@ class EnvironmentRegistry(
             initialValue = emptyList(),
         )
 
-    private val stateFlows = ConcurrentHashMap<String, MutableStateFlow<EnvironmentState>>()
+    private val stateFlows = ConcurrentHashMap<String, MutableStateFlow<EnvironmentProgress>>()
     private val creationJobs = ConcurrentHashMap<String, Job>()
+
+    /**
+     * Service-scoped [CoroutineScope] used for long-running creation work.
+     *
+     * When non-null, [create] launches its coroutine in this scope so the work
+     * survives Activity lifecycle changes (e.g. screen-off while a foreground
+     * service is running). When null, the registry's own [scope] is used.
+     *
+     * Call [setServiceScope] from a bound service's `onCreate` and
+     * [clearServiceScope] from `onDestroy`.
+     */
+    private var serviceScope: CoroutineScope? = null
+
+    /**
+     * Binds a service-owned [CoroutineScope] for long-running work.
+     *
+     * While set, [create] launches its coroutine in [scope] instead of the
+     * registry's default scope so that download/extraction survives the
+     * Activity lifecycle as long as the foreground service is alive.
+     */
+    fun setServiceScope(scope: CoroutineScope?) {
+        this.serviceScope = scope
+    }
+
+    /**
+     * Clears the service scope, reverting to the registry's default scope.
+     */
+    fun clearServiceScope() {
+        this.serviceScope = null
+    }
 
     /**
      * Creates a new environment from the given [config].
@@ -55,14 +85,14 @@ class EnvironmentRegistry(
      * @param config Configuration for the new environment
      * @return A [StateFlow] tracking the creation progress
      */
-    fun create(config: EnvironmentConfig): StateFlow<EnvironmentState> {
+    fun create(config: EnvironmentConfig): StateFlow<EnvironmentProgress> {
         // Deduplicate by environment name — return existing flow if a job is active.
         synchronized(creationJobs) {
             val existingJob = creationJobs[config.name]
             if (existingJob != null && existingJob.isActive) {
                 // Find the state flow for the in-progress creation.
                 val existingFlow = stateFlows.values.firstOrNull {
-                    it.value != EnvironmentState.IDLE && it.value != EnvironmentState.ERROR
+                    it.value.state != EnvironmentState.IDLE && it.value.state != EnvironmentState.ERROR
                 }
                 if (existingFlow != null) {
                     return existingFlow.asStateFlow()
@@ -73,7 +103,8 @@ class EnvironmentRegistry(
             val stateFlow = getOrCreateStateFlow(id)
             val creatingMarker = File(rootfsManager.getEnvironmentDir(id), ".creating")
 
-            val job = scope.launch(Dispatchers.IO) {
+            val launchScope = serviceScope ?: scope
+            val job = launchScope.launch(Dispatchers.IO) {
                 try {
                     // Write .creating marker so interrupted installs can be
                     // cleaned up on next startup.
@@ -95,22 +126,26 @@ class EnvironmentRegistry(
                         name = config.name,
                         distro = config.distro,
                     ).collect { progress ->
-                        stateFlow.value = when (progress.status) {
+                        val state = when (progress.status) {
                             RootfsStatus.DOWNLOADING -> EnvironmentState.DOWNLOADING
                             RootfsStatus.EXTRACTING -> EnvironmentState.EXTRACTING
                             RootfsStatus.INSTALLING -> EnvironmentState.INSTALLING
                             RootfsStatus.READY -> EnvironmentState.IDLE
                             RootfsStatus.ERROR -> EnvironmentState.ERROR
                         }
+                        stateFlow.value = EnvironmentProgress(
+                            state = state,
+                            progress = progress.progress,
+                        )
                     }
 
-                    if (stateFlow.value == EnvironmentState.ERROR) {
+                    if (stateFlow.value.state == EnvironmentState.ERROR) {
                         Log.e(TAG, "Environment creation failed for '${config.name}' (id=$id)")
                     } else {
                         Log.i(TAG, "Environment '${config.name}' (id=$id) created successfully")
                     }
                 } catch (e: Exception) {
-                    stateFlow.value = EnvironmentState.ERROR
+                    stateFlow.value = EnvironmentProgress(EnvironmentState.ERROR, message = e.message ?: "")
                     Log.e(TAG, "Failed to create environment '${config.name}'", e)
                 } finally {
                     creatingMarker.delete()
@@ -127,7 +162,7 @@ class EnvironmentRegistry(
      * Deletes an environment by ID, removing both the filesystem and store entry.
      */
     suspend fun delete(id: String) {
-        getOrCreateStateFlow(id).value = EnvironmentState.STOPPING
+        getOrCreateStateFlow(id).value = EnvironmentProgress(EnvironmentState.STOPPING)
         rootfsManager.deleteEnvironment(id)
         stateFlows.remove(id)
     }
@@ -151,12 +186,12 @@ class EnvironmentRegistry(
             require(sourceDir.exists()) { "Source rootfs directory does not exist: ${sourceDir.path}" }
 
             val stateFlow = getOrCreateStateFlow(newId)
-            stateFlow.value = EnvironmentState.INSTALLING
+            stateFlow.value = EnvironmentProgress(EnvironmentState.INSTALLING)
 
             try {
                 sourceDir.copyRecursively(destDir, overwrite = true)
             } catch (e: Exception) {
-                stateFlow.value = EnvironmentState.ERROR
+                stateFlow.value = EnvironmentProgress(EnvironmentState.ERROR, message = e.message ?: "")
                 destDir.deleteRecursively()
                 throw IllegalStateException("Failed to duplicate environment", e)
             }
@@ -171,7 +206,7 @@ class EnvironmentRegistry(
                 status = RootfsStatus.READY,
             )
             rootfsStore.addEnvironment(env)
-            stateFlow.value = EnvironmentState.IDLE
+            stateFlow.value = EnvironmentProgress(EnvironmentState.IDLE)
             env
         }
 
@@ -188,17 +223,17 @@ class EnvironmentRegistry(
             val destDir = rootfsManager.getEnvironmentDir(newId)
             val stateFlow = getOrCreateStateFlow(newId)
 
-            stateFlow.value = EnvironmentState.EXTRACTING
+            stateFlow.value = EnvironmentProgress(EnvironmentState.EXTRACTING)
             try {
                 val extractor = RootfsExtractor()
                 extractor.extract(File(tarballPath), destDir, stripComponents = 1)
             } catch (e: Exception) {
-                stateFlow.value = EnvironmentState.ERROR
+                stateFlow.value = EnvironmentProgress(EnvironmentState.ERROR, message = e.message ?: "")
                 destDir.deleteRecursively()
                 throw IllegalStateException("Failed to import rootfs from $tarballPath", e)
             }
 
-            stateFlow.value = EnvironmentState.INSTALLING
+            stateFlow.value = EnvironmentProgress(EnvironmentState.INSTALLING)
             rootfsManager.configureRootfs(destDir)
 
             val env = RootfsEnvironment(
@@ -210,7 +245,7 @@ class EnvironmentRegistry(
                 status = RootfsStatus.READY,
             )
             rootfsStore.addEnvironment(env)
-            stateFlow.value = EnvironmentState.IDLE
+            stateFlow.value = EnvironmentProgress(EnvironmentState.IDLE)
             env
         }
 
@@ -265,7 +300,7 @@ class EnvironmentRegistry(
     /**
      * Returns a [StateFlow] tracking the current state of an environment.
      */
-    fun getState(id: String): StateFlow<EnvironmentState> =
+    fun getState(id: String): StateFlow<EnvironmentProgress> =
         getOrCreateStateFlow(id).asStateFlow()
 
     /**
@@ -273,8 +308,8 @@ class EnvironmentRegistry(
      */
     fun availableDistros(): List<DistroTemplate> = DistroTemplate.entries
 
-    private fun getOrCreateStateFlow(id: String): MutableStateFlow<EnvironmentState> =
-        stateFlows.getOrPut(id) { MutableStateFlow(EnvironmentState.IDLE) }
+    private fun getOrCreateStateFlow(id: String): MutableStateFlow<EnvironmentProgress> =
+        stateFlows.getOrPut(id) { MutableStateFlow(EnvironmentProgress(EnvironmentState.IDLE)) }
 
     companion object {
         private const val TAG = "EnvironmentRegistry"
