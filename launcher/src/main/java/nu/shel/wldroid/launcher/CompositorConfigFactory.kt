@@ -78,6 +78,9 @@ class CompositorConfigFactory(
             xkbBasePath = xkbBasePath,
             xwaylandEnabled = xwaylandConfig.enabled,
             xwaylandBinaryPath = xwaylandPath,
+            // On Android, /tmp is not writable by apps.  Point XWayland's
+            // socket/lock directory at the app-private temp dir instead.
+            xwaylandTmpDir = if (xwaylandConfig.enabled) tempDir else "",
             gpuMode = gpuMode,
             testClientEnabled = testClientEnabled,
             ahbRegistrySocketPath = ahbRegistrySocketPath,
