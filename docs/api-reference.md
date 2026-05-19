@@ -53,24 +53,30 @@ class CompositorSession(config: CompositorConfig) {
     val state: StateFlow<CompositorState>       // Lifecycle state
     val clientCount: StateFlow<Int>             // Connected Wayland client count
     val socketPath: StateFlow<String?>          // Wayland socket path (null until RUNNING)
+    val xwaylandDisplay: StateFlow<String?>     // X11 DISPLAY name (e.g. ":0"), null if disabled/failed
 
     // Input access
     val input: CompositorInput                  // Input event dispatcher (new instance per access)
 
     // Lifecycle
     fun start(surface: Surface)                 // Start compositor; rejects double-start
+    fun pause()                                 // Pause compositor (detach native window)
+    fun resume(surface: Surface)                // Resume compositor (attach new native window)
     fun stop()                                  // Stop compositor → STOPPING→STOPPED
     fun stopAsync()                             // Stop on background thread (Mali GPU workaround)
     fun resizeOutput(width: Int, height: Int)   // Handle surface resize
     fun refreshClientCount()                    // Poll native client count
+    fun getClientCount(): Int                   // Poll + return client count
 }
 ```
 
 Lifecycle notes:
 - `start()` throws `IllegalStateException` if already STARTING or RUNNING.
 - After `stop()`, the session resets its internal guard and can be restarted via `start()`.
-- Both `stop()` and `stopAsync()` clean stale wayland sockets and reset `socketPath` to null.
+- Both `stop()` and `stopAsync()` clean stale wayland sockets and reset `socketPath` and `xwaylandDisplay` to null.
 - `stopAsync()` runs shutdown on a background thread to avoid Mali GPU SIGSEGV.
+- `xwaylandDisplay` is null when `CompositorConfig.xwaylandEnabled` is false, when XWayland failed to start, or before `start()` completes.
+- `pause()` and `resume()` manage the native window lifecycle for Android Activity start/stop.
 ```
 
 ### CompositorConfig
@@ -81,14 +87,17 @@ Configuration for the compositor session.
 data class CompositorConfig(
     val cacheDir: String = "",              // Cache directory for temp files
     val xkbBasePath: String = "",           // XKB keyboard layout base path
-    val xwaylandEnabled: Boolean = true,    // Enable X11 compatibility
+    val xwaylandEnabled: Boolean = true,    // Enable X11 compatibility (runtime toggle)
     val xwaylandBinaryPath: String = "",    // Path to XWayland wrapper script (from XWaylandManager)
+    val xwaylandTmpDir: String = "",        // Override /tmp for XWayland sockets (required on Android)
     val gpuMode: String = "AUTO",           // GPU mode (AUTO, SOFTWARE, VIRGL_GLES, etc.)
     val testClientEnabled: Boolean = false,  // Enable built-in test pattern client
+    val ahbRegistrySocketPath: String = "", // AHB registry socket for GPU buffer sharing
 ) {
     // Validates that all required paths exist and settings are consistent.
-    // Throws IllegalStateException if xwaylandEnabled is true but
-    // xwaylandBinaryPath is empty or references a non-existent file.
+    // Throws IllegalStateException if xwaylandEnabled is true and
+    // xwaylandBinaryPath is non-empty but references a non-existent file.
+    // Validation is skipped when xwaylandEnabled is false.
     fun validate()
 
     companion object {

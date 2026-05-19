@@ -150,6 +150,12 @@ void compositor_server_resize_output(struct compositor_server *server,
  */
 int compositor_server_get_client_count(struct compositor_server *server);
 
+/**
+ * Return the XWayland DISPLAY name (e.g. ":0") if XWayland is running,
+ * or NULL if XWayland is disabled, failed to start, or not compiled in.
+ */
+const char *compositor_server_get_xwayland_display(struct compositor_server *server);
+
 
 /**
  * Pause the compositor — detach the native window and stop rendering.

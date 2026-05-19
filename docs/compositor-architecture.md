@@ -147,9 +147,10 @@ Bridges Android IME (Input Method Editor) to the Wayland text-input protocol:
 
 Manages XWayland surfaces — X11 windows that are composited as Wayland surfaces:
 
-- Creates XWayland server via `wlr_xwayland_create()`
+- Creates XWayland server via `wlr_xwayland_create()` (when `xwayland_enabled` is true)
 - Maps X11 windows to xdg_surface equivalents in the scene graph
 - Handles X11 window decorations, position, and focus
+- Entirely skipped at runtime when `CompositorConfig.xwaylandEnabled` is false
 
 ## JNI Bridge Detail
 
@@ -288,11 +289,14 @@ The compositor is configured via `CompositorConfig`:
 
 ```kotlin
 data class CompositorConfig(
-    val cacheDir: String = "",           // Cache directory for compositor temp files
-    val xkbBasePath: String = "",        // Base path for XKB keyboard layouts
-    val xwaylandEnabled: Boolean = true, // Enable X11 app support
-    val gpuMode: String = "AUTO",        // GPU rendering mode
-    val testClientEnabled: Boolean = false, // Enable built-in test pattern client
+    val cacheDir: String = "",              // Cache directory for compositor temp files
+    val xkbBasePath: String = "",           // Base path for XKB keyboard layouts
+    val xwaylandEnabled: Boolean = true,    // Enable X11 app support (runtime toggle)
+    val xwaylandBinaryPath: String = "",    // Path to XWayland wrapper script
+    val xwaylandTmpDir: String = "",        // Override /tmp for XWayland sockets
+    val gpuMode: String = "AUTO",           // GPU rendering mode
+    val testClientEnabled: Boolean = false,  // Enable built-in test pattern client
+    val ahbRegistrySocketPath: String = "", // AHB registry socket for GPU buffer sharing
 )
 ```
 

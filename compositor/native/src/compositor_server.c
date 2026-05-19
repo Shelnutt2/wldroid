@@ -986,3 +986,12 @@ int compositor_server_get_client_count(struct compositor_server *server) {
     return server ? __atomic_load_n(&server->client_count, __ATOMIC_SEQ_CST) : 0;
 }
 
+const char *compositor_server_get_xwayland_display(struct compositor_server *server) {
+#if WLR_HAS_XWAYLAND
+    return (server && server->xwayland) ? server->xwayland->display_name : NULL;
+#else
+    (void)server;
+    return NULL;
+#endif
+}
+

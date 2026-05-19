@@ -208,6 +208,20 @@ fun WaylandScreen() {
 }
 ```
 
+To run without XWayland (Wayland-only apps), set `xwaylandEnabled = false`:
+
+```kotlin
+val config = CompositorConfig(
+    cacheDir = context.cacheDir.absolutePath,
+    xwaylandEnabled = false,  // Skip XWayland initialization entirely
+)
+```
+
+When XWayland is disabled, the compositor skips all X11 support initialization.
+The `CompositorSession.xwaylandDisplay` StateFlow will emit `null`. Only pure
+Wayland clients can connect. This reduces startup overhead and avoids the need
+for an XWayland binary in the proot environment.
+
 ### Level 3: Full Stack (Compositor + Proot + GPU)
 
 Wire up the complete pipeline — environment management, GPU detection, VirGL server, and shim extraction:

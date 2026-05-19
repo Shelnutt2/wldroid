@@ -9,6 +9,7 @@
  *   nativeStopCompositor()
  *   nativeGetSocketName() → String
  *   nativeGetClientCount() → int
+ *   nativeGetXWaylandDisplay() → String
  *   nativeResizeOutput(int, int)
  *   nativePauseCompositor()
  *   nativeResumeCompositor(Surface)
@@ -213,6 +214,20 @@ static jstring native_get_socket_name(JNIEnv *env, jobject thiz) {
         return NULL;
     }
     const char *name = compositor_server_get_socket(g_server);
+    jstring result = name ? (*env)->NewStringUTF(env, name) : NULL;
+    pthread_mutex_unlock(&g_server_mutex);
+    return result;
+}
+
+static jstring native_get_xwayland_display(JNIEnv *env, jobject thiz) {
+    (void)thiz;
+
+    pthread_mutex_lock(&g_server_mutex);
+    if (!g_server) {
+        pthread_mutex_unlock(&g_server_mutex);
+        return NULL;
+    }
+    const char *name = compositor_server_get_xwayland_display(g_server);
     jstring result = name ? (*env)->NewStringUTF(env, name) : NULL;
     pthread_mutex_unlock(&g_server_mutex);
     return result;
@@ -449,6 +464,8 @@ static const JNINativeMethod g_methods[] = {
                                 (void *)native_get_socket_name},
     {"nativeGetClientCount",   "()I",
                                 (void *)native_get_client_count},
+    {"nativeGetXWaylandDisplay", "()Ljava/lang/String;",
+                                (void *)native_get_xwayland_display},
     {"nativeResizeOutput",     "(II)V",
                                 (void *)native_resize_output},
     {"nativePauseCompositor",  "()V",
