@@ -49,6 +49,19 @@ class WldroidService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
 
+    // ── Phantom process detection ────────────────────────────────────────
+
+    private val phantomProcessDetector = PhantomProcessDetector()
+
+    /**
+     * Check whether the phantom process killer is enabled on this device.
+     *
+     * UI layers can call this proactively to warn users before problems occur.
+     * Returns `true` if enabled, `false` if disabled, or `null` if the
+     * setting could not be determined.
+     */
+    fun checkPhantomProcessKiller(): Boolean? = phantomProcessDetector.isPhantomProcessKillerEnabled()
+
     // ── State ───────────────────────────────────────────────────────────
 
     private val _serviceState = MutableStateFlow<WldroidServiceState>(WldroidServiceState.Inactive)
@@ -263,10 +276,17 @@ class WldroidService : Service() {
                         updateSessionNotification(envName)
                     }
                     DesktopSessionState.ERROR -> {
+                        val phantomKillSuspected =
+                            phantomProcessDetector.isPhantomProcessKillerEnabled() != false
+                        val errorMessage = if (phantomKillSuspected) {
+                            PhantomProcessDetector.PHANTOM_KILL_GUIDANCE
+                        } else {
+                            "Desktop session error"
+                        }
                         _serviceState.value = WldroidServiceState.Error(
-                            message = "Desktop session error",
+                            message = errorMessage,
                         )
-                        updateErrorNotification("Desktop session encountered an error")
+                        updateErrorNotification(errorMessage)
                     }
                     DesktopSessionState.STOPPED -> {
                         desktopSession = null
