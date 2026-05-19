@@ -34,3 +34,24 @@ sealed class SetupState {
     val isTerminal: Boolean
         get() = this is Idle || this is Running || this is Error
 }
+
+/**
+ * Status of a single step in the setup stepper.
+ */
+enum class StepStatus { PENDING, ACTIVE, COMPLETED, ERROR }
+
+/**
+ * A single step shown in the [SetupScreen] stepper.
+ *
+ * @param label Human-readable step name (e.g. "Downloading environment")
+ * @param status Current visual status of this step
+ * @param progress Fractional progress 0.0–1.0, or -1f for indeterminate/not-applicable
+ * @param detail Extra text shown when the step is active (e.g. "48.2 MB — 72%")
+ */
+data class SetupStep(
+    val label: String,
+    val status: StepStatus,
+    val progress: Float = -1f,
+    val detail: String = "",
+)
+
