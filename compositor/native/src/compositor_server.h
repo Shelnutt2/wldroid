@@ -107,8 +107,11 @@ struct compositor_toplevel {
  * Create and initialise the compositor.  Does NOT start the event loop.
  * @window is retained (with ANativeWindow_acquire semantics handled
  * internally) for the lifetime of the server.
+ * @xwayland_enabled controls whether XWayland (X11 app support) is
+ * initialised.  When false, XWayland is skipped even if compiled in.
  */
-struct compositor_server *compositor_server_create(ANativeWindow *window);
+struct compositor_server *compositor_server_create(ANativeWindow *window,
+                                                   bool xwayland_enabled);
 
 /**
  * Run the Wayland event loop.  Blocks until compositor_server_stop() is

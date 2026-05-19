@@ -14,7 +14,7 @@ class CompositorServer {
     }
 
     // Compositor lifecycle
-    external fun nativeStartCompositor(surface: Surface, cacheDir: String, xkbBasePath: String)
+    external fun nativeStartCompositor(surface: Surface, cacheDir: String, xkbBasePath: String, xwaylandEnabled: Boolean)
     external fun nativeStopCompositor()
     external fun nativePauseCompositor()
     external fun nativeResumeCompositor(surface: Surface)

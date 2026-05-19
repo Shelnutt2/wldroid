@@ -5,7 +5,7 @@
  * on the configurable class nu.shel.wldroid.compositor.CompositorServer.
  *
  * Exposed methods:
- *   nativeStartCompositor(Surface, String, String)
+ *   nativeStartCompositor(Surface, String, String, boolean)
  *   nativeStopCompositor()
  *   nativeGetSocketName() → String
  *   nativeGetClientCount() → int
@@ -81,7 +81,8 @@ static void *compositor_thread_func(void *arg) {
 
 static void native_start_compositor(JNIEnv *env, jobject thiz,
                                     jobject surface, jstring cache_dir,
-                                    jstring xkb_base_path) {
+                                    jstring xkb_base_path,
+                                    jboolean xwayland_enabled) {
     (void)thiz;
 
     pthread_mutex_lock(&g_server_mutex);
@@ -133,7 +134,7 @@ static void native_start_compositor(JNIEnv *env, jobject thiz,
         }
     }
 
-    g_server = compositor_server_create(window);
+    g_server = compositor_server_create(window, xwayland_enabled);
     /* The compositor's output now holds its own ANativeWindow reference,
      * so we always release the JNI-obtained reference. */
     ANativeWindow_release(window);
@@ -440,7 +441,7 @@ static void native_resume_compositor(JNIEnv *env, jobject thiz,
 
 static const JNINativeMethod g_methods[] = {
     /* Compositor lifecycle */
-    {"nativeStartCompositor",  "(Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;)V",
+    {"nativeStartCompositor",  "(Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;Z)V",
                                 (void *)native_start_compositor},
     {"nativeStopCompositor",   "()V",
                                 (void *)native_stop_compositor},
