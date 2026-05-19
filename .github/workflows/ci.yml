@@ -118,8 +118,9 @@ jobs:
           [built-in options]
           pkg_config_path = ['$SCANNER_PC_DIR']
           NEOF
-          # Disable renderers and backends — host tests don't need EGL/GPU
-          meson setup builddir --native-file "$NATIVE_FILE" --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends=
+          # Disable renderers, backends, and XWayland — host tests don't need EGL/GPU/X11.
+          # This also avoids downloading Xorg fallback subprojects in CI.
+          meson setup builddir --native-file "$NATIVE_FILE" --wrap-mode=forcefallback -Dwlroots:renderers= -Dwlroots:backends= -Dwlroots:xwayland=disabled
           meson test -C builddir --print-errorlogs --suite wldroid-compositor
       - name: Build and test GBM shim (host)
         run: |

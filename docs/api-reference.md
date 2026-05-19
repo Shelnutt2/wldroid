@@ -686,7 +686,7 @@ enum class DesktopSessionState {
 
 ### DesktopLauncher
 
-Orchestrates the two-phase desktop app launch pipeline (GPU setup + app launch).
+Orchestrates the two-phase desktop app launch pipeline (GPU setup + app launch). `DesktopLauncher` expects `CompositorSession` to already be started and reporting a Wayland socket; use `DesktopSession` if you want a single API that starts the compositor from an Android `Surface` before launching the app.
 
 ```kotlin
 class DesktopLauncher(

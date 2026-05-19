@@ -10,6 +10,7 @@
 #
 # Optional env vars:
 #   WLDROID_DEBUG — set to "1" for verbose output and Mesa debug logging
+#   WLDROID_ALLOW_MISSING_WAYLAND_SOCKET — set to "1" only for debugging socket startup failures
 #
 # Usage: launch-app.sh <command> [args...]
 
@@ -147,11 +148,17 @@ if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
 
     if [ -e "${SOCKET_PATH}" ]; then
         log "Wayland socket ready: ${SOCKET_PATH}"
-    else
+    elif [ "${WLDROID_ALLOW_MISSING_WAYLAND_SOCKET:-0}" = "1" ]; then
         log "Warning: Wayland socket not found after ${WAIT_TIMEOUT}s: ${SOCKET_PATH}"
+    else
+        die "Wayland socket not found after ${WAIT_TIMEOUT}s: ${SOCKET_PATH}"
     fi
 else
-    debug "XDG_RUNTIME_DIR or WAYLAND_DISPLAY not set, skipping socket wait"
+    if [ "${WLDROID_ALLOW_MISSING_WAYLAND_SOCKET:-0}" = "1" ]; then
+        log "Warning: XDG_RUNTIME_DIR or WAYLAND_DISPLAY not set, skipping socket wait"
+    else
+        die "XDG_RUNTIME_DIR and WAYLAND_DISPLAY must be set"
+    fi
 fi
 
 # --- Exec the user's command ---

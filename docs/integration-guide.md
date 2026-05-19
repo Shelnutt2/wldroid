@@ -398,6 +398,11 @@ but the ordering is documented here for apps that wire components manually.
 9. App launch (Phase 2)       launch-app.sh inside proot
 ```
 
+`DesktopLauncher` refreshes `/etc/resolv.conf` before GPU setup, package
+installation, and app launch so `apt-get` and the launched application see the
+current Android network DNS. Package installation failures abort the launch; they
+are not ignored.
+
 Steps 2 and 3 are the most common source of ordering bugs: if the XWayland
 wrapper script is not extracted before `CompositorConfig` is constructed, the
 `xwaylandBinaryPath` will reference a non-existent file and the compositor
@@ -420,11 +425,12 @@ val config = factory.createWithXWayland(
 val session = CompositorSession(config)
 ```
 
-### Recommended: use DesktopLauncher
+### Recommended: use DesktopSession
 
-`DesktopLauncher` handles steps 4 through 9 internally. Combined with
+`DesktopSession` handles steps 4 through 9 internally. Combined with
 `CompositorConfigFactory` for steps 2 and 3, downstream apps only need to
-manage step 1 (environment creation) and surface lifecycle:
+manage step 1 (environment creation) and surface lifecycle. Prefer this path
+when you have an Android `Surface` available:
 
 ```kotlin
 // Step 1: environment
@@ -439,7 +445,7 @@ val config = factory.createWithXWayland(
 )
 val session = CompositorSession(config)
 
-// Steps 4-9: launcher handles the rest
+// Steps 4-9: DesktopSession starts the compositor, then the launcher.
 val launcher = DesktopLauncher(
     context = context,
     compositorSession = session,
@@ -449,7 +455,13 @@ val launcher = DesktopLauncher(
     config = launcherConfig,
     xwaylandManager = xwaylandManager,
 )
-launcher.launch(env, listOf("code", "--no-sandbox"), scope = lifecycleScope)
+val desktopSession = DesktopSession(session, launcher)
+desktopSession.start(surface, env, listOf("code", "--no-sandbox"), scope = lifecycleScope)
+
+// If you call DesktopLauncher directly, start CompositorSession first and wait
+// until it reports a socketPath. The launcher fails fast when the Wayland socket
+// or required environment is missing, so launch ordering issues surface as
+// startup errors instead of a black window.
 ```
 
 ### Manual wiring (advanced)

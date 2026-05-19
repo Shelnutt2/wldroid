@@ -162,6 +162,10 @@ class DesktopLauncher(
                 val shimSet = shimExtractor.extractAll(config.shimExtractDir)
                 emitOutput("✓ Shims extracted")
 
+                // Write DNS config before any proot invocation that may touch
+                // the network (GPU package setup, package installation, app launch).
+                dnsManager?.writeResolvConf(File(environment.rootfsPath))
+
                 // ===== Phase 1: GPU Setup (separate proot invocation) =====
                 if (_gpuMode.value != GpuMode.SOFTWARE) {
                     _state.value = DesktopLauncherState.SetupGpu
@@ -202,7 +206,7 @@ class DesktopLauncher(
                         onOutput = { emitOutput("[install] $it") },
                     )
                     if (exitCode != 0) {
-                        emitOutput("⚠ Package install exited with code $exitCode, continuing anyway...")
+                        throw IllegalStateException("Package install exited with code $exitCode")
                     }
                 }
 
@@ -213,7 +217,8 @@ class DesktopLauncher(
                     emitOutput("✓ XWayland wrapper ready: $wrapperPath")
                 }
 
-                // 7. Write DNS config before launching in proot
+                // Refresh DNS again immediately before the long-running app process
+                // in case the Android active network changed during installation.
                 dnsManager?.writeResolvConf(File(environment.rootfsPath))
 
                 // ===== Phase 2: App Launch (separate proot invocation) =====
@@ -235,7 +240,19 @@ class DesktopLauncher(
                 // Build process env vars (safe vars — no LD_PRELOAD)
                 val socketName = File(socketPath).name
                 val xwaylandDisplay = if (config.xwaylandConfig.enabled) {
-                    config.xwaylandConfig.displayName
+                    val actualDisplay = withTimeoutOrNull(2_000) {
+                        compositorSession.xwaylandDisplay.filterNotNull().first()
+                    }
+                    if (actualDisplay == null) {
+                        emitOutput(
+                            "⚠ XWayland DISPLAY was not reported by compositor; " +
+                                "falling back to ${config.xwaylandConfig.displayName}",
+                        )
+                        config.xwaylandConfig.displayName
+                    } else {
+                        emitOutput("✓ XWayland DISPLAY: $actualDisplay")
+                        actualDisplay
+                    }
                 } else {
                     ""
                 }
