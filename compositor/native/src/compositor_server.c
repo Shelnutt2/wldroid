@@ -609,7 +609,8 @@ static struct wlr_renderer *try_create_gles2_renderer(void) {
 }
 #endif /* WLR_HAS_GLES2_RENDERER */
 
-struct compositor_server *compositor_server_create(ANativeWindow *window) {
+struct compositor_server *compositor_server_create(ANativeWindow *window,
+                                                   bool xwayland_enabled) {
     struct compositor_server *server = calloc(1, sizeof(*server));
     if (!server) {
         wlr_log(WLR_ERROR, "Failed to allocate compositor_server");
@@ -809,17 +810,21 @@ struct compositor_server *compositor_server_create(ANativeWindow *window) {
 
 #if WLR_HAS_XWAYLAND
     /* ---- XWayland (X11 app support) ---- */
-    server->xwayland = wlr_xwayland_create(server->wl_display,
-                                            server->compositor, true);
-    if (server->xwayland) {
-        server->new_xwayland_surface.notify = on_new_xwayland_surface;
-        wl_signal_add(&server->xwayland->events.new_surface,
-                      &server->new_xwayland_surface);
-        wlr_xwayland_set_seat(server->xwayland, server->seat);
-        wlr_log(WLR_INFO, "XWayland ready (lazy mode), DISPLAY=%s",
-                server->xwayland->display_name);
+    if (xwayland_enabled) {
+        server->xwayland = wlr_xwayland_create(server->wl_display,
+                                                server->compositor, true);
+        if (server->xwayland) {
+            server->new_xwayland_surface.notify = on_new_xwayland_surface;
+            wl_signal_add(&server->xwayland->events.new_surface,
+                          &server->new_xwayland_surface);
+            wlr_xwayland_set_seat(server->xwayland, server->seat);
+            wlr_log(WLR_INFO, "XWayland ready (lazy mode), DISPLAY=%s",
+                    server->xwayland->display_name);
+        } else {
+            wlr_log(WLR_ERROR, "Failed to start XWayland");
+        }
     } else {
-        wlr_log(WLR_ERROR, "Failed to start XWayland");
+        wlr_log(WLR_INFO, "XWayland disabled by configuration");
     }
 #endif
 

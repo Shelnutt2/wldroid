@@ -69,7 +69,7 @@ class CompositorSession(private val config: CompositorConfig) {
             cleanStaleWaylandFiles(dir)
             runtimeDir = dir
 
-            server.nativeStartCompositor(surface, dir.absolutePath, config.xkbBasePath)
+            server.nativeStartCompositor(surface, dir.absolutePath, config.xkbBasePath, config.xwaylandEnabled)
 
             val socketName = server.nativeGetSocketName()
             if (socketName == null) {
