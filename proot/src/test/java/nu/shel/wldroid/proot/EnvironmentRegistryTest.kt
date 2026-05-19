@@ -48,6 +48,26 @@ class EnvironmentRegistryTest {
     }
 
     @Test
+    fun `EnvironmentProgress defaults are indeterminate with empty message`() {
+        val progress = EnvironmentProgress(EnvironmentState.DOWNLOADING)
+        assertThat(progress.state).isEqualTo(EnvironmentState.DOWNLOADING)
+        assertThat(progress.progress).isEqualTo(-1f)
+        assertThat(progress.message).isEmpty()
+    }
+
+    @Test
+    fun `EnvironmentProgress can carry determinate progress and message`() {
+        val progress = EnvironmentProgress(
+            state = EnvironmentState.EXTRACTING,
+            progress = 0.42f,
+            message = "extracting rootfs",
+        )
+        assertThat(progress.state).isEqualTo(EnvironmentState.EXTRACTING)
+        assertThat(progress.progress).isWithin(0.001f).of(0.42f)
+        assertThat(progress.message).isEqualTo("extracting rootfs")
+    }
+
+    @Test
     fun `RootfsStatus enum has all expected values`() {
         val statuses = RootfsStatus.entries
         assertThat(statuses.map { it.name }).containsExactly(
