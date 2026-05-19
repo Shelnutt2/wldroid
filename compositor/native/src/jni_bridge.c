@@ -103,26 +103,29 @@ static void native_start_compositor(JNIEnv *env, jobject thiz,
 
     /*
      * Wayland's wl_display_add_socket_auto() requires XDG_RUNTIME_DIR to
-     * exist and be set.  Android doesn't provide this by default.
+     * exist and be set. Android doesn't provide this by default.
      * Use the app's cacheDir/wayland-runtime (passed from Kotlin) which is
-     * app-private and writable by the same UID.  The proot child process
+     * app-private and writable by the same UID. The proot child process
      * shares our UID, so no world-accessible permissions are needed.
+     *
+     * Always overwrite this process-global env var for the session being
+     * started. A prior compositor session or host app may have set a different
+     * runtime dir, and leaving that stale value in place makes the compositor
+     * and launcher disagree about where the socket lives.
      */
-    if (!getenv("XDG_RUNTIME_DIR")) {
-        const char *dir = (*env)->GetStringUTFChars(env, cache_dir, NULL);
-        if (dir) {
-            LOGI("Setting XDG_RUNTIME_DIR=%s", dir);
-            /*
-             * Note: setenv() is not thread-safe per POSIX, but this is called
-             * early during JNI initialization before the compositor thread starts,
-             * so there are no concurrent readers.
-             */
-            setenv("XDG_RUNTIME_DIR", dir, 0);
-            if (mkdir(dir, 0700) != 0 && errno != EEXIST) {
-                LOGE("mkdir %s failed: %s", dir, strerror(errno));
-            }
-            (*env)->ReleaseStringUTFChars(env, cache_dir, dir);
+    const char *dir = (*env)->GetStringUTFChars(env, cache_dir, NULL);
+    if (dir) {
+        LOGI("Setting XDG_RUNTIME_DIR=%s", dir);
+        /*
+         * Note: setenv() is not thread-safe per POSIX, but this is called
+         * early during JNI initialization before the compositor thread starts,
+         * so there are no concurrent readers.
+         */
+        setenv("XDG_RUNTIME_DIR", dir, 1);
+        if (mkdir(dir, 0700) != 0 && errno != EEXIST) {
+            LOGE("mkdir %s failed: %s", dir, strerror(errno));
         }
+        (*env)->ReleaseStringUTFChars(env, cache_dir, dir);
     }
 
     /* Point xkbcommon at the bundled xkb-data extracted from app assets. */

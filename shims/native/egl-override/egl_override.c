@@ -2,17 +2,17 @@
  * libEGL.so.1 wrapper — mode-aware EGL interception for proot GPU rendering.
  *
  * ANGLE loads Mesa's EGL via dlopen("libEGL.so.1"). This wrapper sits at
- * /opt/coder/lib/libEGL.so.1 (first on LD_LIBRARY_PATH), so ANGLE finds
+ * /opt/wldroid/lib/libEGL.so.1 (first on LD_LIBRARY_PATH), so ANGLE finds
  * us first. We load the real Mesa EGL and pass through all functions, with
- * mode-dependent behavior controlled by CODER_GPU_MODE env var:
+ * mode-dependent behavior controlled by WLDROID_GPU_MODE:
  *
- * SOFTWARE MODE (default, CODER_GPU_MODE unset or "software"):
+ * SOFTWARE MODE (default, WLDROID_GPU_MODE unset or SOFTWARE):
  *   1. eglGetPlatformDisplay(GBM, ...) → redirect to SURFACELESS_MESA.
  *   2. eglCreateWindowSurface → pbuffer + wl_shm + xdg_toplevel.
  *   3. eglSwapBuffers → glReadPixels → row-flip → wl_shm → wl_surface.commit.
  *   Pixel transport: GPU render → glReadPixels → row-flip → wl_shm → commit.
  *
- * GPU MODE (CODER_GPU_MODE = virgl_gles|virgl_zink|turnip_direct|venus):
+ * GPU MODE (WLDROID_GPU_MODE = VIRGL_GLES|VIRGL_ZINK|TURNIP_DIRECT|VENUS):
  *   All EGL calls pass through to real Mesa unchanged (GBM platform).
  *   Chromium/ANGLE uses GbmSurfacelessWayland with FBOs + zwp_linux_dmabuf_v1.
  *   An xdg_toplevel is still created for compositor touch redirect (app_id
@@ -1081,12 +1081,12 @@ static void egl_wrapper_init(void) {
 
     /* GL functions loaded lazily via ensure_gl_funcs() in eglSwapBuffers */
 
-    /* Detect GPU mode from environment */
-    const char *mode_env = getenv("CODER_GPU_MODE");
-    if (mode_env && (strcmp(mode_env, "virgl_gles") == 0 ||
-                     strcmp(mode_env, "virgl_zink") == 0 ||
-                     strcmp(mode_env, "turnip_direct") == 0 ||
-                     strcmp(mode_env, "venus") == 0)) {
+    /* Detect GPU mode from WLDroid's namespaced environment variable. */
+    const char *mode_env = getenv("WLDROID_GPU_MODE");
+    if (mode_env && (strcmp(mode_env, "VIRGL_GLES") == 0 ||
+                     strcmp(mode_env, "VIRGL_ZINK") == 0 ||
+                     strcmp(mode_env, "TURNIP_DIRECT") == 0 ||
+                     strcmp(mode_env, "VENUS") == 0)) {
         gpu_mode = 1;
         LOG("[egl-wrapper] GPU mode: GBM passthrough\n");
 

@@ -182,6 +182,7 @@ Linux applications expect to create EGL displays and surfaces using GBM or nativ
 
 ### Implementation
 
+- **Mode detection** — reads `WLDROID_GPU_MODE` (`VIRGL_GLES`, `VIRGL_ZINK`, `TURNIP_DIRECT`, `VENUS`).
 - **No headers required** — all function resolution via `dlopen()` / `dlsym()` at runtime
 - **Hardcoded Wayland protocol opcodes** — directly speaks Wayland wire protocol without libwayland dependency
 - **Self-contained** — no build-time dependencies on EGL or Wayland headers
