@@ -66,6 +66,27 @@ class EnvironmentRegistryTest {
         assertThat(progress.progress).isWithin(0.001f).of(0.42f)
         assertThat(progress.message).isEqualTo("extracting rootfs")
     }
+    @Test
+    fun `EnvironmentProgress wraps all EnvironmentState values`() {
+        EnvironmentState.entries.forEach { state ->
+            val progress = EnvironmentProgress(state)
+            assertThat(progress.state).isEqualTo(state)
+        }
+    }
+
+    @Test
+    fun `EnvironmentProgress preserves boundary progress values`() {
+        assertThat(EnvironmentProgress(EnvironmentState.DOWNLOADING, 0.0f).progress).isEqualTo(0.0f)
+        assertThat(EnvironmentProgress(EnvironmentState.DOWNLOADING, 1.0f).progress).isEqualTo(1.0f)
+    }
+
+    @Test
+    fun `EnvironmentProgress data class equality`() {
+        val a = EnvironmentProgress(EnvironmentState.INSTALLING, 0.5f, "halfway")
+        val b = EnvironmentProgress(EnvironmentState.INSTALLING, 0.5f, "halfway")
+        assertThat(a).isEqualTo(b)
+    }
+
 
     @Test
     fun `RootfsStatus enum has all expected values`() {

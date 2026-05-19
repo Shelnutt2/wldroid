@@ -102,3 +102,55 @@ class SetupStateTest {
         assertThat(SetupState.Running).isSameInstanceAs(SetupState.Running)
     }
 }
+
+class StepStatusTest {
+
+    @Test fun `StepStatus has all expected values`() {
+        val values = StepStatus.entries
+        assertThat(values.map { it.name }).containsExactly(
+            "PENDING", "ACTIVE", "COMPLETED", "ERROR",
+        )
+    }
+}
+
+class SetupStepTest {
+
+    @Test fun `SetupStep construction with defaults`() {
+        val step = SetupStep(label = "Download", status = StepStatus.PENDING)
+        assertThat(step.label).isEqualTo("Download")
+        assertThat(step.status).isEqualTo(StepStatus.PENDING)
+        assertThat(step.progress).isEqualTo(-1f)
+        assertThat(step.detail).isEmpty()
+    }
+
+    @Test fun `SetupStep preserves all fields`() {
+        val step = SetupStep(
+            label = "Extracting",
+            status = StepStatus.ACTIVE,
+            progress = 0.42f,
+            detail = "48.2 MB — 72%",
+        )
+        assertThat(step.label).isEqualTo("Extracting")
+        assertThat(step.status).isEqualTo(StepStatus.ACTIVE)
+        assertThat(step.progress).isWithin(0.001f).of(0.42f)
+        assertThat(step.detail).isEqualTo("48.2 MB — 72%")
+    }
+
+    @Test fun `SetupStep data class equality`() {
+        val a = SetupStep("Download", StepStatus.COMPLETED, 1.0f, "Done")
+        val b = SetupStep("Download", StepStatus.COMPLETED, 1.0f, "Done")
+        assertThat(a).isEqualTo(b)
+    }
+
+    @Test fun `SetupStep with error status`() {
+        val step = SetupStep(
+            label = "Install packages",
+            status = StepStatus.ERROR,
+            detail = "apt failed",
+        )
+        assertThat(step.status).isEqualTo(StepStatus.ERROR)
+        assertThat(step.detail).isEqualTo("apt failed")
+        assertThat(step.progress).isEqualTo(-1f)
+    }
+}
+
