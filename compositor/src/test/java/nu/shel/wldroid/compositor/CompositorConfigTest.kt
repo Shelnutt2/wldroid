@@ -92,6 +92,54 @@ class CompositorConfigTest {
     }
 
     @Test
+    fun `xwaylandEnabled defaults to true`() {
+        val config = CompositorConfig()
+        assertTrue(config.xwaylandEnabled)
+    }
+
+    @Test
+    fun `xwaylandEnabled false skips validation of binary path`() {
+        // When XWayland is disabled, a non-existent binary path should not
+        // cause validate() to fail — the path is irrelevant.
+        val config = CompositorConfig(
+            xwaylandEnabled = false,
+            xwaylandBinaryPath = "/nonexistent/path/xwayland-wrapper.sh",
+        )
+        // Should not throw
+        config.validate()
+    }
+
+    @Test
+    fun `xwaylandTmpDir can be set`() {
+        val config = CompositorConfig(xwaylandTmpDir = "/data/local/tmp/xwayland")
+        assertEquals("/data/local/tmp/xwayland", config.xwaylandTmpDir)
+    }
+
+    @Test
+    fun `xwaylandTmpDir defaults to empty`() {
+        val config = CompositorConfig()
+        assertEquals("", config.xwaylandTmpDir)
+    }
+
+    @Test
+    fun `config with xwayland disabled preserves other fields`() {
+        val config = CompositorConfig(
+            cacheDir = "/cache",
+            xkbBasePath = "/xkb",
+            xwaylandEnabled = false,
+            xwaylandBinaryPath = "/path/to/xwayland",
+            xwaylandTmpDir = "/tmp/xwayland",
+            gpuMode = "SOFTWARE",
+        )
+        assertEquals("/cache", config.cacheDir)
+        assertEquals("/xkb", config.xkbBasePath)
+        assertFalse(config.xwaylandEnabled)
+        assertEquals("/path/to/xwayland", config.xwaylandBinaryPath)
+        assertEquals("/tmp/xwayland", config.xwaylandTmpDir)
+        assertEquals("SOFTWARE", config.gpuMode)
+    }
+
+    @Test
     fun `validate passes for existing binary path`() {
         val tempFile = java.io.File.createTempFile("xwayland-test", ".sh")
         try {

@@ -23,6 +23,14 @@ class CompositorSession(private val config: CompositorConfig) {
     private val _socketPath = MutableStateFlow<String?>(null)
     val socketPath: StateFlow<String?> = _socketPath.asStateFlow()
 
+    /**
+     * The XWayland X11 DISPLAY name (e.g. ":0"), or null if XWayland is
+     * disabled, failed to start, or not compiled into the native library.
+     * Updated after [start] completes.
+     */
+    private val _xwaylandDisplay = MutableStateFlow<String?>(null)
+    val xwaylandDisplay: StateFlow<String?> = _xwaylandDisplay.asStateFlow()
+
     /** Guard to prevent double-stop (matches original CompositorActivity pattern). */
     private val stopRequested = AtomicBoolean(false)
 
@@ -46,21 +54,23 @@ class CompositorSession(private val config: CompositorConfig) {
                 Os.setenv("AHB_REGISTRY_SOCKET", config.ahbRegistrySocketPath, true)
             }
 
-            // Validate XWayland wrapper path before starting the compositor.
-            // The wrapper script must already exist on disk; use
-            // CompositorConfigFactory.createWithXWayland() or call
-            // XWaylandManager.prepare() before constructing CompositorConfig.
+            // Configure XWayland environment variables.
+            // When enabled, validate the wrapper path and set the env vars that
+            // wlroots reads to locate the Xwayland binary and its temp directory.
+            // When disabled, unset any stale env vars from a previous session in
+            // the same process to avoid confusing debugging or future code that
+            // might inspect these variables.
             if (config.xwaylandEnabled && config.xwaylandBinaryPath.isNotEmpty()) {
                 config.validate()
                 Os.setenv("WLR_XWAYLAND", config.xwaylandBinaryPath, true)
+            } else {
+                try { Os.unsetenv("WLR_XWAYLAND") } catch (_: Exception) {}
             }
 
-            // Redirect XWayland sockets to an app-writable directory.
-            // On Android, /tmp is not writable by apps. The wlroots fork
-            // reads WLR_XWAYLAND_TMPDIR to override /tmp for X11 socket
-            // and lock file creation.
             if (config.xwaylandTmpDir.isNotEmpty()) {
                 Os.setenv("WLR_XWAYLAND_TMPDIR", config.xwaylandTmpDir, true)
+            } else {
+                try { Os.unsetenv("WLR_XWAYLAND_TMPDIR") } catch (_: Exception) {}
             }
 
             // Create a dedicated wayland-runtime subdirectory and clean stale sockets.
@@ -82,6 +92,7 @@ class CompositorSession(private val config: CompositorConfig) {
 
             _state.value = CompositorState.RUNNING
             _socketPath.value = socketName
+            _xwaylandDisplay.value = server.nativeGetXWaylandDisplay()
         } catch (e: Exception) {
             if (_state.value != CompositorState.ERROR) {
                 _state.value = CompositorState.ERROR
@@ -101,6 +112,7 @@ class CompositorSession(private val config: CompositorConfig) {
     /** Reset observable state and clean stale socket files after the compositor stops. */
     private fun cleanupOnStop() {
         _socketPath.value = null
+        _xwaylandDisplay.value = null
         runtimeDir?.let { cleanStaleWaylandFiles(it) }
     }
 

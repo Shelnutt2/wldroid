@@ -20,6 +20,7 @@ class CompositorServer {
     external fun nativeResumeCompositor(surface: Surface)
     external fun nativeGetSocketName(): String?
     external fun nativeGetClientCount(): Int
+    external fun nativeGetXWaylandDisplay(): String?
     external fun nativeResizeOutput(width: Int, height: Int)
 
     // Input
