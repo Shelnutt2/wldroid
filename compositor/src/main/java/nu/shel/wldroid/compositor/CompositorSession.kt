@@ -55,6 +55,14 @@ class CompositorSession(private val config: CompositorConfig) {
                 Os.setenv("WLR_XWAYLAND", config.xwaylandBinaryPath, true)
             }
 
+            // Redirect XWayland sockets to an app-writable directory.
+            // On Android, /tmp is not writable by apps. The wlroots fork
+            // reads WLR_XWAYLAND_TMPDIR to override /tmp for X11 socket
+            // and lock file creation.
+            if (config.xwaylandTmpDir.isNotEmpty()) {
+                Os.setenv("WLR_XWAYLAND_TMPDIR", config.xwaylandTmpDir, true)
+            }
+
             // Create a dedicated wayland-runtime subdirectory and clean stale sockets.
             val dir = File(config.cacheDir, "wayland-runtime")
             dir.mkdirs()

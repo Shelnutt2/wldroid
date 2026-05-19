@@ -12,6 +12,13 @@ data class CompositorConfig(
      * Empty string means wlroots uses its default search (which won't find Xwayland on Android).
      */
     val xwaylandBinaryPath: String = "",
+    /**
+     * Host directory used for XWayland's X11 sockets and lock files.
+     * Set via the `WLR_XWAYLAND_TMPDIR` environment variable before the compositor starts.
+     * On Android, `/tmp` is not writable by apps, so this must point to an app-private
+     * directory (typically the proot-tmp cache dir). Empty string uses the wlroots default (`/tmp`).
+     */
+    val xwaylandTmpDir: String = "",
     val gpuMode: String = "AUTO", // Will be replaced by enum from :virgl module
     val testClientEnabled: Boolean = false,
     /** Path for the AHB registry Unix socket used for GPU buffer sharing with VirGL. */
