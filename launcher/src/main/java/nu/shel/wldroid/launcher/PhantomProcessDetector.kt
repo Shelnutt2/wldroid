@@ -1,5 +1,7 @@
 package nu.shel.wldroid.launcher
 
+import java.util.concurrent.TimeUnit
+
 /**
  * Detects when Android's phantom process killer has terminated child processes.
  *
@@ -14,11 +16,15 @@ class PhantomProcessDetector {
      */
     fun isPhantomProcessKillerEnabled(): Boolean? {
         return try {
-            val result = Runtime.getRuntime().exec(
-                arrayOf("settings", "get", "global", "settings_enable_monitor_phantom_procs")
-            )
-            val output = result.inputStream.bufferedReader().readText().trim()
-            result.waitFor()
+            val process = ProcessBuilder(
+                "settings", "get", "global", "settings_enable_monitor_phantom_procs"
+            ).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+            val finished = process.waitFor(5, TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                return null
+            }
             when (output) {
                 "0" -> false
                 "1" -> true
@@ -30,20 +36,7 @@ class PhantomProcessDetector {
         }
     }
 
-    /**
-     * Checks if a process with the given PID is still alive.
-     */
-    fun isProcessAlive(pid: Int): Boolean {
-        return try {
-            java.io.File("/proc/$pid").exists()
-        } catch (e: Exception) {
-            false
-        }
-    }
-
     companion object {
-        const val TAG = "PhantomProcessDetector"
-
         /** User-facing guidance message when phantom process killing is detected. */
         const val PHANTOM_KILL_GUIDANCE =
             "Android terminated background processes. Enable Developer Options and disable 'Phantom process monitoring' to fix this."

@@ -31,12 +31,13 @@ class WldroidServiceStateTest {
         assertThat(state.isTerminal).isFalse()
     }
 
-    @Test fun `Error with canRetry true is not terminal`() {
+    @Test fun `Error with canRetry true is still terminal`() {
+        // Even retryable errors are terminal — user must take action to retry.
         val state = WldroidServiceState.Error(
             message = "oops",
             canRetry = true,
         )
-        assertThat(state.isTerminal).isFalse()
+        assertThat(state.isTerminal).isTrue()
         assertThat(state.isActive).isFalse()
     }
 

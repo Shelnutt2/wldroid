@@ -38,8 +38,8 @@ import nu.shel.wldroid.proot.RootfsEnvironment
  * The session can be restarted after [stop] completes.
  */
 class DesktopSession(
-    val compositorSession: CompositorSession,
-    val launcher: DesktopLauncher,
+    private val compositorSession: CompositorSession,
+    private val launcher: DesktopLauncher,
 ) {
     private val _state = MutableStateFlow(DesktopSessionState.IDLE)
 
@@ -69,6 +69,11 @@ class DesktopSession(
         scope: CoroutineScope,
         requiredPackages: List<String> = emptyList(),
     ) {
+        val currentState = _state.value
+        if (currentState != DesktopSessionState.IDLE && currentState != DesktopSessionState.STOPPED) {
+            android.util.Log.w("DesktopSession", "start() called in state $currentState — ignoring")
+            return
+        }
         _state.value = DesktopSessionState.STARTING
         try {
             compositorSession.start(surface)
@@ -92,17 +97,21 @@ class DesktopSession(
      */
     suspend fun stop() {
         _state.value = DesktopSessionState.STOPPING
-
-        // Stop launcher first: kills proot, stops VirGL, cleans files.
-        launcher.stop()
-
-        // Stop compositor: shuts down native Wayland server.
-        val compositorState = compositorSession.state.value
-        if (compositorState != CompositorState.STOPPED && compositorState != CompositorState.IDLE) {
-            compositorSession.stopAsync()
+        try {
+            // Stop launcher first: kills proot, stops VirGL, cleans files.
+            launcher.stop()
+        } finally {
+            // Always stop compositor even if launcher teardown fails.
+            try {
+                val compositorState = compositorSession.state.value
+                if (compositorState != CompositorState.STOPPED && compositorState != CompositorState.IDLE) {
+                    compositorSession.stopAsync()
+                }
+            } catch (_: Exception) {
+                // Best-effort compositor shutdown.
+            }
+            _state.value = DesktopSessionState.STOPPED
         }
-
-        _state.value = DesktopSessionState.STOPPED
     }
 
     /**

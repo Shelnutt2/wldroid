@@ -2,6 +2,7 @@ package nu.shel.wldroid.launcher
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -82,7 +83,10 @@ class WldroidService : Service() {
             val pm = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG).apply {
                 setReferenceCounted(false)
-                acquire()
+                // Safety timeout: 4 hours. Prevents indefinite wake lock if the service
+                // fails to release (e.g. due to an unhandled crash). Normal sessions
+                // release the lock explicitly in stopSession() / onDestroy().
+                acquire(4 * 60 * 60 * 1000L)
             }
         }
     }
@@ -108,17 +112,30 @@ class WldroidService : Service() {
             indeterminate = true,
         )
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        return START_STICKY
+        // START_NOT_STICKY: this service is user-initiated. If the system kills it,
+        // do not auto-restart with a null intent — let the user re-launch explicitly.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         sessionObserverJob?.cancel()
         sessionObserverJob = null
         desktopSession = null
-        serviceScope.cancel()
         releaseWakeLock()
+        // Set state before cancelling the scope — after cancel(), emissions may fail.
         _serviceState.value = WldroidServiceState.Inactive
+        serviceScope.cancel()
         super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // If no session is active, stop the service when the task is removed.
+        // If a session is running, keep the service alive (that's the point of
+        // stopWithTask=false in the manifest).
+        if (desktopSession == null) {
+            stopSelf()
+        }
     }
 
     // ── Notification helpers ────────────────────────────────────────────
@@ -145,13 +162,24 @@ class WldroidService : Service() {
         ongoing: Boolean = true,
         silent: Boolean = true,
     ) = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_menu_manage)
+        // Default framework icon — consumers should provide their own via a
+        // custom notification builder or by overriding the notification channel.
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
         .setContentTitle(title)
         .setContentText(text)
         .setPriority(priority)
         .setOngoing(ongoing)
         .setSilent(silent)
         .apply {
+            // Tap notification to open the host app.
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                val contentIntent = PendingIntent.getActivity(
+                    this@WldroidService, 0, launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                setContentIntent(contentIntent)
+            }
             when {
                 progress != null -> setProgress(100, progress, false)
                 indeterminate -> setProgress(0, 0, true)
@@ -209,6 +237,12 @@ class WldroidService : Service() {
     /**
      * Update the notification to show an error state.
      * Default priority so it surfaces in the notification shade.
+     *
+     * **Note:** This method only updates the notification — it does NOT update
+     * [_serviceState]. Callers are responsible for setting the service state
+     * (e.g. `_serviceState.value = WldroidServiceState.Error(...)`) before or
+     * after calling this method. This separation allows callers to control the
+     * exact error parameters (phase, canRetry) independently.
      */
     fun updateErrorNotification(message: String) {
         postNotification(
@@ -222,6 +256,7 @@ class WldroidService : Service() {
 
     // ── Session management ─────────────────────────────────────────────
 
+    @Volatile
     private var desktopSession: DesktopSession? = null
     private var sessionObserverJob: Job? = null
 
@@ -253,6 +288,14 @@ class WldroidService : Service() {
         launcher: DesktopLauncher,
         envName: String = "Desktop",
     ) {
+        // If a session is already running, tear it down first to avoid leaking.
+        desktopSession?.let { oldSession ->
+            sessionObserverJob?.cancel()
+            sessionObserverJob = null
+            desktopSession = null
+            serviceScope.launch { oldSession.stop() }
+        }
+
         val session = DesktopSession(compositorSession, launcher)
         desktopSession = session
         acquireWakeLock()
@@ -320,18 +363,15 @@ class WldroidService : Service() {
             stopSelfIfIdle()
             return
         }
+        // Cancel the observer first to prevent it from racing with our cleanup.
+        sessionObserverJob?.cancel()
+        sessionObserverJob = null
+        desktopSession = null
         serviceScope.launch {
             session.stop()
-            // The session observer will handle the rest when state reaches STOPPED.
-            // But if the observer is already cancelled, clean up directly.
-            if (desktopSession != null) {
-                desktopSession = null
-                sessionObserverJob?.cancel()
-                sessionObserverJob = null
-                releaseWakeLock()
-                _serviceState.value = WldroidServiceState.Inactive
-                stopSelfIfIdle()
-            }
+            releaseWakeLock()
+            _serviceState.value = WldroidServiceState.Inactive
+            stopSelfIfIdle()
         }
     }
 
@@ -342,12 +382,15 @@ class WldroidService : Service() {
      * Stop the service if no work is in progress.
      *
      * Checks that there is no active session and no setup in progress
-     * before calling [stopSelf].
+     * before calling [stopSelf]. Always dispatches to the main thread
+     * via [serviceScope] for thread safety.
      */
-    fun stopSelfIfIdle() {
-        val state = _serviceState.value
-        if (state is WldroidServiceState.Inactive && desktopSession == null) {
-            stopSelf()
+    private fun stopSelfIfIdle() {
+        serviceScope.launch {
+            val state = _serviceState.value
+            if (state is WldroidServiceState.Inactive && desktopSession == null) {
+                stopSelf()
+            }
         }
     }
 }
