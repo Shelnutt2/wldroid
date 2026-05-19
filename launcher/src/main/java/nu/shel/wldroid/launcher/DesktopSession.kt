@@ -46,6 +46,10 @@ class DesktopSession(
     /** Observable session state. */
     val state: StateFlow<DesktopSessionState> = _state.asStateFlow()
 
+    /** Whether the session is currently running (started and not yet stopped/errored). */
+    val isRunning: Boolean
+        get() = _state.value == DesktopSessionState.RUNNING
+
     /**
      * Start the desktop session.
      *

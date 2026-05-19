@@ -12,10 +12,14 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import nu.shel.wldroid.compositor.CompositorSession
 
 /**
  * Foreground service that keeps wldroid processes alive during setup and
@@ -95,6 +99,9 @@ class WldroidService : Service() {
     }
 
     override fun onDestroy() {
+        sessionObserverJob?.cancel()
+        sessionObserverJob = null
+        desktopSession = null
         serviceScope.cancel()
         releaseWakeLock()
         _serviceState.value = WldroidServiceState.Inactive
@@ -200,7 +207,10 @@ class WldroidService : Service() {
         )
     }
 
-    // ── Placeholder session methods ─────────────────────────────────────
+    // ── Session management ─────────────────────────────────────────────
+
+    private var desktopSession: DesktopSession? = null
+    private var sessionObserverJob: Job? = null
 
     /**
      * Begin environment creation / setup.
@@ -216,32 +226,107 @@ class WldroidService : Service() {
     }
 
     /**
-     * Start a desktop session.
-     * Placeholder — will be wired to compositor + virgl in a later step.
+     * Start a desktop session backed by the given [compositorSession] and
+     * [launcher]. The service takes ownership of the session lifecycle and
+     * will observe the underlying [DesktopSession.state] to keep the
+     * notification and [serviceState] in sync.
+     *
+     * @param compositorSession The compositor session providing the Wayland server.
+     * @param launcher The desktop launcher managing proot / VirGL / shims.
+     * @param envName A human-readable name for the environment shown in the notification.
      */
-    fun startSession() {
-        _serviceState.value = WldroidServiceState.SessionActive(
-            envName = "Default",
-            gpuMode = nu.shel.wldroid.virgl.GpuMode.SOFTWARE,
-        )
+    fun startSession(
+        compositorSession: CompositorSession,
+        launcher: DesktopLauncher,
+        envName: String = "Desktop",
+    ) {
+        val session = DesktopSession(compositorSession, launcher)
+        desktopSession = session
         acquireWakeLock()
+
+        _serviceState.value = WldroidServiceState.SessionActive(
+            envName = envName,
+            gpuMode = launcher.gpuMode.value,
+        )
+        updateSessionNotification(envName)
+
+        // Observe session state changes and propagate to service state / notification.
+        sessionObserverJob?.cancel()
+        sessionObserverJob = serviceScope.launch {
+            session.state.collectLatest { sessionState ->
+                when (sessionState) {
+                    DesktopSessionState.RUNNING -> {
+                        _serviceState.value = WldroidServiceState.SessionActive(
+                            envName = envName,
+                            gpuMode = launcher.gpuMode.value,
+                        )
+                        updateSessionNotification(envName)
+                    }
+                    DesktopSessionState.ERROR -> {
+                        _serviceState.value = WldroidServiceState.Error(
+                            message = "Desktop session error",
+                        )
+                        updateErrorNotification("Desktop session encountered an error")
+                    }
+                    DesktopSessionState.STOPPED -> {
+                        desktopSession = null
+                        sessionObserverJob?.cancel()
+                        sessionObserverJob = null
+                        releaseWakeLock()
+                        _serviceState.value = WldroidServiceState.Inactive
+                        stopSelfIfIdle()
+                    }
+                    // IDLE, STARTING, STOPPING — transient, no service state change needed.
+                    else -> {}
+                }
+            }
+        }
     }
 
     /**
      * Stop the running desktop session and release resources.
-     * Placeholder — will be wired to compositor + virgl teardown.
+     *
+     * Tears down the [DesktopSession] asynchronously. The session observer
+     * will transition the service to [WldroidServiceState.Inactive] once
+     * the session reaches [DesktopSessionState.STOPPED].
+     *
+     * Safe to call when no session is active (no-op).
      */
     fun stopSession() {
-        releaseWakeLock()
-        _serviceState.value = WldroidServiceState.Inactive
-        stopSelfIfIdle()
+        val session = desktopSession ?: run {
+            // No active session — ensure we're in a clean state.
+            releaseWakeLock()
+            _serviceState.value = WldroidServiceState.Inactive
+            stopSelfIfIdle()
+            return
+        }
+        serviceScope.launch {
+            session.stop()
+            // The session observer will handle the rest when state reaches STOPPED.
+            // But if the observer is already cancelled, clean up directly.
+            if (desktopSession != null) {
+                desktopSession = null
+                sessionObserverJob?.cancel()
+                sessionObserverJob = null
+                releaseWakeLock()
+                _serviceState.value = WldroidServiceState.Inactive
+                stopSelfIfIdle()
+            }
+        }
     }
+
+    /** Return the current [DesktopSession], or `null` if no session is active. */
+    fun getDesktopSession(): DesktopSession? = desktopSession
 
     /**
      * Stop the service if no work is in progress.
+     *
+     * Checks that there is no active session and no setup in progress
+     * before calling [stopSelf].
      */
     fun stopSelfIfIdle() {
-        if (_serviceState.value is WldroidServiceState.Inactive) {
+        val state = _serviceState.value
+        if (state is WldroidServiceState.Inactive && desktopSession == null) {
             stopSelf()
         }
     }
