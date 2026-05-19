@@ -5,6 +5,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import kotlinx.coroutines.flow.StateFlow
+import nu.shel.wldroid.launcher.WldroidService
 import nu.shel.wldroid.testapp.screens.CompositorTestScreen
 import nu.shel.wldroid.testapp.screens.DesktopScreen
 import nu.shel.wldroid.testapp.screens.EnvironmentScreen
@@ -33,6 +35,7 @@ sealed class TestAppRoute(val route: String, val title: String, val icon: String
 @Composable
 fun TestAppNavHost(
     navController: NavHostController,
+    serviceFlow: StateFlow<WldroidService?>,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -41,7 +44,7 @@ fun TestAppNavHost(
         modifier = modifier,
     ) {
         composable(TestAppRoute.Compositor.route) { CompositorTestScreen() }
-        composable(TestAppRoute.Desktop.route) { DesktopScreen() }
+        composable(TestAppRoute.Desktop.route) { DesktopScreen(serviceFlow = serviceFlow) }
         composable(TestAppRoute.Environment.route) { EnvironmentScreen() }
         composable(TestAppRoute.GpuDiagnostics.route) { GpuDiagnosticsScreen() }
         composable(TestAppRoute.ShimTest.route) { ShimTestScreen() }
