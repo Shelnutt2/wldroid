@@ -2,7 +2,6 @@ package nu.shel.wldroid.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
@@ -33,11 +32,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -75,7 +76,7 @@ fun SetupScreen(
     onRetry: (() -> Unit)? = null,
 ) {
     // Track which step index was last active so errors highlight the correct row.
-    var lastActiveIndex by remember { mutableIntStateOf(0) }
+    var lastActiveIndex by rememberSaveable { mutableIntStateOf(0) }
     val activeIndex = stateToActiveIndex(state)
     if (activeIndex >= 0) {
         lastActiveIndex = activeIndex
@@ -125,8 +126,7 @@ fun SetupScreen(
             // Stepper card
             Card(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .animateContentSize(),
+                    .fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -256,7 +256,9 @@ private fun StepRow(step: SetupStep) {
                 when (status) {
                     StepStatus.COMPLETED -> CompletedIcon()
                     StepStatus.ACTIVE -> CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier
+                            .size(22.dp)
+                            .semantics { contentDescription = "In progress" },
                         strokeWidth = 2.5.dp,
                     )
                     StepStatus.PENDING -> PendingIcon()
@@ -329,22 +331,27 @@ private fun StepRow(step: SetupStep) {
 @Composable
 private fun CompletedIcon() {
     val color = MaterialTheme.colorScheme.primary
-    Canvas(modifier = Modifier.size(22.dp)) {
+    val checkColor = MaterialTheme.colorScheme.onPrimary
+    Canvas(
+        modifier = Modifier
+            .size(22.dp)
+            .semantics { contentDescription = "Completed" },
+    ) {
         val w = size.width
         val h = size.height
         // Circle background
         drawCircle(color = color, radius = w / 2f)
-        // Checkmark (white)
+        // Checkmark
         val stroke = Stroke(width = w * 0.12f, cap = StrokeCap.Round)
         drawLine(
-            color = Color.White,
+            color = checkColor,
             start = Offset(w * 0.28f, h * 0.50f),
             end = Offset(w * 0.45f, h * 0.67f),
             strokeWidth = stroke.width,
             cap = StrokeCap.Round,
         )
         drawLine(
-            color = Color.White,
+            color = checkColor,
             start = Offset(w * 0.45f, h * 0.67f),
             end = Offset(w * 0.72f, h * 0.35f),
             strokeWidth = stroke.width,
@@ -357,7 +364,11 @@ private fun CompletedIcon() {
 @Composable
 private fun PendingIcon() {
     val color = MaterialTheme.colorScheme.outlineVariant
-    Canvas(modifier = Modifier.size(22.dp)) {
+    Canvas(
+        modifier = Modifier
+            .size(22.dp)
+            .semantics { contentDescription = "Pending" },
+    ) {
         drawCircle(
             color = color,
             radius = size.width / 2f - 1.dp.toPx(),
@@ -370,14 +381,19 @@ private fun PendingIcon() {
 @Composable
 private fun ErrorIcon() {
     val color = MaterialTheme.colorScheme.error
-    Canvas(modifier = Modifier.size(22.dp)) {
+    val xColor = MaterialTheme.colorScheme.onError
+    Canvas(
+        modifier = Modifier
+            .size(22.dp)
+            .semantics { contentDescription = "Error" },
+    ) {
         val w = size.width
         val h = size.height
         drawCircle(color = color, radius = w / 2f)
         val pad = w * 0.30f
         val sw = w * 0.12f
-        drawLine(Color.White, Offset(pad, pad), Offset(w - pad, h - pad), sw, cap = StrokeCap.Round)
-        drawLine(Color.White, Offset(w - pad, pad), Offset(pad, h - pad), sw, cap = StrokeCap.Round)
+        drawLine(xColor, Offset(pad, pad), Offset(w - pad, h - pad), sw, cap = StrokeCap.Round)
+        drawLine(xColor, Offset(w - pad, pad), Offset(pad, h - pad), sw, cap = StrokeCap.Round)
     }
 }
 
