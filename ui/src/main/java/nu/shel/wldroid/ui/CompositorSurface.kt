@@ -7,12 +7,17 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -24,10 +29,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,12 +48,19 @@ import java.io.FileInputStream
  * dispatches touch/key/pointer events, and provides a custom [InputConnection]
  * for IME text input.
  *
+ * Zoom and pan are Android host viewport transforms. They do not change the
+ * guest Wayland output size, DPI, or client layout.
+ *
  * @param modifier Layout modifier for the surface container.
  * @param config Compositor configuration (cache dir, XKB path, GPU mode, etc.).
  * @param onStateChange Called when the compositor lifecycle state changes.
  * @param onClientCountChange Called when the number of connected Wayland clients changes.
  * @param inputMode Controls which input events are forwarded to the compositor.
  * @param showKeyboardFab Whether to show a floating action button for toggling the keyboard.
+ * @param enableViewportGestures Whether two-finger host pinch/pan gestures are enabled.
+ * @param minZoom Minimum host viewport zoom; does not affect Wayland output size.
+ * @param maxZoom Maximum host viewport zoom; does not affect Wayland output size.
+ * @param keyboardPanBehavior How the host viewport accounts for Android IME overlap.
  */
 @Composable
 fun CompositorSurface(
@@ -59,10 +71,32 @@ fun CompositorSurface(
     onClientCountChange: (Int) -> Unit = {},
     inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
+    enableViewportGestures: Boolean = true,
+    minZoom: Float = 1f,
+    maxZoom: Float = 4f,
+    keyboardPanBehavior: KeyboardPanBehavior = KeyboardPanBehavior.PanWithinImeSafeArea,
 ) {
     val compositorState by surfaceState.compositorState.collectAsState()
     val clientCount by surfaceState.clientCount.collectAsState()
     val isKeyboardVisible by surfaceState.isKeyboardVisible.collectAsState()
+    var surfaceViewRef by remember { mutableStateOf<CompositorSurfaceView?>(null) }
+
+    val density = LocalDensity.current
+    val imeBottomInset = WindowInsets.ime.getBottom(density)
+
+    LaunchedEffect(minZoom, maxZoom) {
+        surfaceState.setViewportScaleBounds(minZoom, maxZoom)
+    }
+
+    LaunchedEffect(imeBottomInset, keyboardPanBehavior) {
+        surfaceState.setImeBottomInset(
+            if (keyboardPanBehavior == KeyboardPanBehavior.PanWithinImeSafeArea) {
+                imeBottomInset
+            } else {
+                0
+            },
+        )
+    }
 
     // Notify callers of state changes.
     LaunchedEffect(compositorState) {
@@ -76,7 +110,7 @@ fun CompositorSurface(
     LaunchedEffect(compositorState) {
         if (compositorState == CompositorState.RUNNING) {
             launch(Dispatchers.IO) {
-                readImePipe(surfaceState)
+                readImePipe(surfaceState) { surfaceViewRef }
             }
         }
     }
@@ -85,13 +119,21 @@ fun CompositorSurface(
         CompositorAndroidView(
             surfaceState = surfaceState,
             inputMode = inputMode,
+            enableViewportGestures = enableViewportGestures,
+            onViewChanged = { surfaceViewRef = it },
             modifier = Modifier.fillMaxSize(),
         )
 
         if (showKeyboardFab) {
             KeyboardToggleFab(
                 isKeyboardVisible = isKeyboardVisible,
-                onToggle = { toggleKeyboard(surfaceState) },
+                onToggle = {
+                    toggleKeyboard(
+                        surfaceState = surfaceState,
+                        view = surfaceViewRef,
+                        keyboardInputEnabled = inputMode.hasKeyboardInput,
+                    )
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
@@ -107,26 +149,41 @@ fun CompositorSurface(
 private fun CompositorAndroidView(
     surfaceState: CompositorSurfaceState,
     inputMode: InputMode,
+    enableViewportGestures: Boolean,
+    onViewChanged: (CompositorSurfaceView?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var surfaceViewRef by remember { mutableStateOf<SurfaceView?>(null) }
+    val viewport by surfaceState.viewport.collectAsState()
 
     DisposableEffect(Unit) {
         onDispose {
             surfaceState.session.stop()
-            surfaceViewRef = null
+            onViewChanged(null)
         }
     }
 
     AndroidView(
         factory = { context ->
-            CompositorSurfaceView(context, surfaceState, inputMode).also { view ->
-                surfaceViewRef = view
+            FrameLayout(context).also { container ->
+                container.clipChildren = true
+                container.clipToPadding = true
+                container.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                    surfaceState.setViewportViewSize(right - left, bottom - top)
+                }
+
+                val view = CompositorSurfaceView(
+                    context = context,
+                    surfaceState = surfaceState,
+                    inputMode = inputMode,
+                    enableViewportGestures = enableViewportGestures,
+                )
+                onViewChanged(view)
                 view.isFocusable = true
                 view.isFocusableInTouchMode = true
                 view.holder.addCallback(
                     object : SurfaceHolder.Callback {
                         override fun surfaceCreated(holder: SurfaceHolder) {
+                            view.requestFocus()
                             val state = surfaceState.session.state.value
                             if (state == CompositorState.PAUSED) {
                                 surfaceState.session.resume(holder.surface)
@@ -141,6 +198,7 @@ private fun CompositorAndroidView(
                             width: Int,
                             height: Int,
                         ) {
+                            surfaceState.setViewportContentSize(width, height)
                             surfaceState.session.resizeOutput(width, height)
                         }
 
@@ -149,7 +207,25 @@ private fun CompositorAndroidView(
                         }
                     },
                 )
+                container.addView(
+                    view,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
             }
+        },
+        update = { container ->
+            val view = container.getChildAt(0) as? CompositorSurfaceView ?: return@AndroidView
+            view.inputMode = inputMode
+            view.enableViewportGestures = enableViewportGestures
+            view.pivotX = 0f
+            view.pivotY = 0f
+            view.scaleX = viewport.scale
+            view.scaleY = viewport.scale
+            view.translationX = viewport.panX
+            view.translationY = viewport.panY
         },
         modifier = modifier,
     )
@@ -162,11 +238,23 @@ private fun CompositorAndroidView(
 private class CompositorSurfaceView(
     context: Context,
     private val surfaceState: CompositorSurfaceState,
-    private val inputMode: InputMode,
+    inputMode: InputMode,
+    enableViewportGestures: Boolean,
 ) : SurfaceView(context) {
+
+    var inputMode: InputMode = inputMode
+    var enableViewportGestures: Boolean = enableViewportGestures
 
     private val input: CompositorInput
         get() = surfaceState.session.input
+
+    private val forwardedTouchIds = mutableSetOf<Int>()
+    private var hostGestureActive = false
+    private var suppressTouchForwardingUntilUp = false
+    private var lastGestureFocusX = 0f
+    private var lastGestureFocusY = 0f
+    private var lastGestureSpan = 0f
+    private val hostLocationInWindow = IntArray(2)
 
     override fun onCheckIsTextEditor(): Boolean = inputMode.hasKeyboardInput
 
@@ -177,6 +265,11 @@ private class CompositorSurfaceView(
         return object : BaseInputConnection(this, true) {
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 val str = text?.toString() ?: return false
+                if (input.hasActiveTextInput()) {
+                    input.commitText(str)
+                    return true
+                }
+
                 // Try to map characters to synthetic key events
                 val keyCharMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
                 val events = keyCharMap.getEvents(str.toCharArray())
@@ -226,17 +319,33 @@ private class CompositorSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (!inputMode.hasTouchInput && !inputMode.hasPointerInput) return super.onTouchEvent(event)
-
         val toolType = event.getToolType(0)
         val isMouse = toolType == MotionEvent.TOOL_TYPE_MOUSE
 
         if (isMouse && inputMode.hasPointerInput) {
             handlePointerEvent(event)
-        } else if (!isMouse && inputMode.hasTouchInput) {
-            handleTouchEvent(event)
+            return true
         }
 
+        if (!isMouse && shouldHandleHostGesture(event)) {
+            handleHostGesture(event)
+            return true
+        }
+
+        if (suppressTouchForwardingUntilUp) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                suppressTouchForwardingUntilUp = false
+            }
+            return true
+        }
+
+        if (!isMouse && inputMode.hasTouchInput) {
+            handleTouchEvent(event)
+            return true
+        }
+
+        if (enableViewportGestures && !isMouse) return true
+        if (!inputMode.hasTouchInput && !inputMode.hasPointerInput) return super.onTouchEvent(event)
         return true
     }
 
@@ -245,10 +354,13 @@ private class CompositorSurfaceView(
 
         return when (event.actionMasked) {
             MotionEvent.ACTION_HOVER_MOVE -> {
-                input.sendPointerMotion(event.x, event.y, event.eventTime)
+                val point = mapEventToGuest(event, 0)
+                input.sendPointerMotion(point.x, point.y, event.eventTime)
                 true
             }
             MotionEvent.ACTION_SCROLL -> {
+                val point = mapEventToGuest(event, 0)
+                input.sendPointerMotion(point.x, point.y, event.eventTime)
                 val hScroll = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
                 val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 input.sendPointerScroll(hScroll, vScroll, event.eventTime)
@@ -281,6 +393,74 @@ private class CompositorSurfaceView(
         return true
     }
 
+    private fun shouldHandleHostGesture(event: MotionEvent): Boolean {
+        return enableViewportGestures && (hostGestureActive || event.pointerCount >= 2)
+    }
+
+    private fun handleHostGesture(event: MotionEvent) {
+        val action = event.actionMasked
+        if (!hostGestureActive) {
+            cancelForwardedTouches(event.eventTime)
+            beginHostGesture(event)
+            return
+        }
+
+        when (action) {
+            MotionEvent.ACTION_MOVE -> updateHostGesture(event)
+            MotionEvent.ACTION_POINTER_DOWN -> beginHostGesture(event)
+            MotionEvent.ACTION_POINTER_UP -> {
+                val remainingPointers = event.pointerCount - 1
+                if (remainingPointers >= 2) {
+                    beginHostGesture(event, skipPointerIndex = event.actionIndex)
+                } else {
+                    endHostGesture(suppressUntilUp = true)
+                }
+            }
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL,
+            -> endHostGesture(suppressUntilUp = false)
+        }
+    }
+
+    private fun beginHostGesture(event: MotionEvent, skipPointerIndex: Int = -1) {
+        hostGestureActive = true
+        suppressTouchForwardingUntilUp = true
+        val centroid = gestureCentroid(event, skipPointerIndex)
+        lastGestureFocusX = centroid.first
+        lastGestureFocusY = centroid.second
+        lastGestureSpan = gestureSpan(event, lastGestureFocusX, lastGestureFocusY, skipPointerIndex)
+    }
+
+    private fun updateHostGesture(event: MotionEvent) {
+        val centroid = gestureCentroid(event)
+        val focusX = centroid.first
+        val focusY = centroid.second
+        val span = gestureSpan(event, focusX, focusY)
+
+        if (lastGestureSpan > 0f && span > 0f) {
+            surfaceState.zoomBy(span / lastGestureSpan, focusX, focusY)
+        }
+        surfaceState.panBy(focusX - lastGestureFocusX, focusY - lastGestureFocusY)
+
+        lastGestureFocusX = focusX
+        lastGestureFocusY = focusY
+        lastGestureSpan = span
+    }
+
+    private fun endHostGesture(suppressUntilUp: Boolean) {
+        hostGestureActive = false
+        lastGestureSpan = 0f
+        suppressTouchForwardingUntilUp = suppressUntilUp
+    }
+
+    private fun cancelForwardedTouches(timestampMs: Long) {
+        if (forwardedTouchIds.isEmpty()) return
+        forwardedTouchIds.forEach { id ->
+            input.sendTouchEvent(id, MotionEvent.ACTION_CANCEL, 0f, 0f, timestampMs)
+        }
+        forwardedTouchIds.clear()
+    }
+
     private fun handleTouchEvent(event: MotionEvent) {
         val actionIndex = event.actionIndex
         val action = event.actionMasked
@@ -290,17 +470,22 @@ private class CompositorSurfaceView(
             MotionEvent.ACTION_POINTER_DOWN,
             -> {
                 val id = event.getPointerId(actionIndex)
+                val point = mapEventToGuest(event, actionIndex)
+                forwardedTouchIds.add(id)
                 input.sendTouchEvent(
                     id, MotionEvent.ACTION_DOWN,
-                    event.getX(actionIndex), event.getY(actionIndex),
+                    point.x, point.y,
                     event.eventTime,
                 )
             }
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
+                    val id = event.getPointerId(i)
+                    if (id !in forwardedTouchIds) continue
+                    val point = mapEventToGuest(event, i)
                     input.sendTouchEvent(
-                        event.getPointerId(i), MotionEvent.ACTION_MOVE,
-                        event.getX(i), event.getY(i),
+                        id, MotionEvent.ACTION_MOVE,
+                        point.x, point.y,
                         event.eventTime,
                     )
                 }
@@ -309,26 +494,32 @@ private class CompositorSurfaceView(
             MotionEvent.ACTION_POINTER_UP,
             -> {
                 val id = event.getPointerId(actionIndex)
-                input.sendTouchEvent(
-                    id, MotionEvent.ACTION_UP,
-                    event.getX(actionIndex), event.getY(actionIndex),
-                    event.eventTime,
-                )
+                if (id in forwardedTouchIds) {
+                    val point = mapEventToGuest(event, actionIndex)
+                    input.sendTouchEvent(
+                        id, MotionEvent.ACTION_UP,
+                        point.x, point.y,
+                        event.eventTime,
+                    )
+                    forwardedTouchIds.remove(id)
+                }
             }
             MotionEvent.ACTION_CANCEL -> {
-                for (i in 0 until event.pointerCount) {
+                for (id in forwardedTouchIds.toList()) {
                     input.sendTouchEvent(
-                        event.getPointerId(i), MotionEvent.ACTION_CANCEL,
-                        event.getX(i), event.getY(i),
+                        id, MotionEvent.ACTION_CANCEL,
+                        0f, 0f,
                         event.eventTime,
                     )
                 }
+                forwardedTouchIds.clear()
             }
         }
     }
 
     private fun handlePointerEvent(event: MotionEvent) {
-        input.sendPointerMotion(event.x, event.y, event.eventTime)
+        val point = mapEventToGuest(event, 0)
+        input.sendPointerMotion(point.x, point.y, event.eventTime)
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -352,6 +543,62 @@ private class CompositorSurfaceView(
                 )
             }
         }
+    }
+
+    private fun gestureCentroid(event: MotionEvent, skipPointerIndex: Int = -1): Pair<Float, Float> {
+        var sumX = 0f
+        var sumY = 0f
+        var count = 0
+        for (i in 0 until event.pointerCount) {
+            if (i == skipPointerIndex) continue
+            sumX += hostX(event, i)
+            sumY += hostY(event, i)
+            count++
+        }
+        if (count == 0) return lastGestureFocusX to lastGestureFocusY
+        return sumX / count to sumY / count
+    }
+
+    private fun gestureSpan(
+        event: MotionEvent,
+        focusX: Float,
+        focusY: Float,
+        skipPointerIndex: Int = -1,
+    ): Float {
+        var sum = 0f
+        var count = 0
+        for (i in 0 until event.pointerCount) {
+            if (i == skipPointerIndex) continue
+            val dx = hostX(event, i) - focusX
+            val dy = hostY(event, i) - focusY
+            sum += kotlin.math.sqrt(dx * dx + dy * dy)
+            count++
+        }
+        return if (count > 0) sum / count else 0f
+    }
+
+    private fun mapEventToGuest(event: MotionEvent, pointerIndex: Int): GuestPoint {
+        return surfaceState.mapViewToGuest(hostX(event, pointerIndex), hostY(event, pointerIndex))
+    }
+
+    private fun hostX(event: MotionEvent, pointerIndex: Int): Float {
+        return event.getRawX(pointerIndex) - hostOriginX()
+    }
+
+    private fun hostY(event: MotionEvent, pointerIndex: Int): Float {
+        return event.getRawY(pointerIndex) - hostOriginY()
+    }
+
+    private fun hostOriginX(): Int {
+        val host = parent as? View ?: this
+        host.getLocationInWindow(hostLocationInWindow)
+        return hostLocationInWindow[0]
+    }
+
+    private fun hostOriginY(): Int {
+        val host = parent as? View ?: this
+        host.getLocationInWindow(hostLocationInWindow)
+        return hostLocationInWindow[1]
     }
 
     companion object {
@@ -390,7 +637,10 @@ private class CompositorSurfaceView(
  * Reads the IME pipe from the compositor to show/hide the software keyboard.
  * The pipe sends 'S' for show and 'H' for hide.
  */
-private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
+private suspend fun readImePipe(
+    surfaceState: CompositorSurfaceState,
+    viewProvider: () -> View?,
+) {
     val fd = surfaceState.session.input.getImePipeFd()
     if (fd < 0) return
 
@@ -403,8 +653,12 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
                 val bytesRead = fis.read(buffer)
                 if (bytesRead <= 0) break
                 when (buffer[0].toInt().toChar()) {
-                    'S' -> surfaceState.setKeyboardVisible(true)
-                    'H' -> surfaceState.setKeyboardVisible(false)
+                    'S' -> withContext(Dispatchers.Main) {
+                        showKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                    }
+                    'H' -> withContext(Dispatchers.Main) {
+                        hideKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                    }
                 }
             }
         } catch (_: Exception) {
@@ -419,15 +673,47 @@ private suspend fun readImePipe(surfaceState: CompositorSurfaceState) {
     }
 }
 
-/**
- * Toggles the software keyboard for the given compositor state.
- */
-private fun toggleKeyboard(surfaceState: CompositorSurfaceState) {
+/** Toggles the software keyboard for the given compositor state. */
+private fun toggleKeyboard(
+    surfaceState: CompositorSurfaceState,
+    view: View?,
+    keyboardInputEnabled: Boolean,
+) {
     val visible = surfaceState.isKeyboardVisible.value
-    surfaceState.setKeyboardVisible(!visible)
     if (visible) {
-        surfaceState.session.input.notifyImeHidden()
-    } else {
+        hideKeyboard(view, surfaceState, notifyNative = true)
+    } else if (keyboardInputEnabled) {
+        showKeyboard(view, surfaceState, notifyNative = true)
+    }
+}
+
+private fun showKeyboard(
+    view: View?,
+    surfaceState: CompositorSurfaceState,
+    notifyNative: Boolean,
+) {
+    val targetView = view ?: return
+    targetView.requestFocus()
+    val imm = targetView.context.getSystemService(InputMethodManager::class.java)
+    imm?.showSoftInput(targetView, InputMethodManager.SHOW_IMPLICIT)
+    surfaceState.setKeyboardVisible(true)
+    if (notifyNative) {
         surfaceState.session.input.notifyImeShown()
+    }
+}
+
+private fun hideKeyboard(
+    view: View?,
+    surfaceState: CompositorSurfaceState,
+    notifyNative: Boolean,
+) {
+    val targetView = view
+    val imm = targetView?.context?.getSystemService(InputMethodManager::class.java)
+    if (targetView != null) {
+        imm?.hideSoftInputFromWindow(targetView.windowToken, 0)
+    }
+    surfaceState.setKeyboardVisible(false)
+    if (notifyNative) {
+        surfaceState.session.input.notifyImeHidden()
     }
 }

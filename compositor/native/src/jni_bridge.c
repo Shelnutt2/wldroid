@@ -22,6 +22,7 @@
  *   nativeImeShown()
  *   nativeImeHidden()
  *   nativeGetImePipeFd() → int
+ *   nativeHasActiveTextInput() → boolean
  *   nativeStartTestClient()
  *
  * The compositor event loop runs on a dedicated pthread so it never blocks
@@ -398,6 +399,14 @@ static jint native_get_ime_pipe_fd(JNIEnv *env, jobject thiz) {
     return fd;
 }
 
+static jboolean native_has_active_text_input(JNIEnv *env, jobject thiz) {
+    (void)env; (void)thiz;
+    pthread_mutex_lock(&g_server_mutex);
+    jboolean active = (g_server && text_input_has_active_text_input()) ? JNI_TRUE : JNI_FALSE;
+    pthread_mutex_unlock(&g_server_mutex);
+    return active;
+}
+
 /* ------------------------------------------------------------------ */
 /* Test client                                                         */
 /* ------------------------------------------------------------------ */
@@ -497,6 +506,8 @@ static const JNINativeMethod g_methods[] = {
                                 (void *)native_ime_hidden},
     {"nativeGetImePipeFd",     "()I",
                                 (void *)native_get_ime_pipe_fd},
+    {"nativeHasActiveTextInput", "()Z",
+                                (void *)native_has_active_text_input},
 
     /* Test */
     {"nativeStartTestClient",  "()V",

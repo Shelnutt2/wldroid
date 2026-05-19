@@ -35,6 +35,7 @@ class CompositorServer {
     external fun nativeImeShown()
     external fun nativeImeHidden()
     external fun nativeGetImePipeFd(): Int
+    external fun nativeHasActiveTextInput(): Boolean
 
     // Test
     external fun nativeStartTestClient()
