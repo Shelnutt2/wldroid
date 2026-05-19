@@ -72,6 +72,8 @@ sealed class WldroidServiceState {
         val phase: SetupPhase? = null,
         val canRetry: Boolean = true,
     ) : WldroidServiceState() {
-        override val isTerminal: Boolean get() = !canRetry
+        // Always terminal: even retryable errors require user action before the
+        // service can resume, so the service may stop its foreground state.
+        override val isTerminal: Boolean get() = true
     }
 }
