@@ -750,10 +750,16 @@ fun CompositorSurface(
     config: CompositorConfig,
     onStateChange: (CompositorState) -> Unit,
     onClientCountChange: (Int) -> Unit,
-    inputMode: InputMode = InputMode.TOUCH,
+    inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
+    enableViewportGestures: Boolean = false,
+    minZoom: Float = 1f,
+    maxZoom: Float = 4f,
+    keyboardPanBehavior: KeyboardPanBehavior = KeyboardPanBehavior.PanWithinImeSafeArea,
 )
 ```
+
+`enableViewportGestures` opts into host-side two-finger pinch/pan. This only transforms the Android viewport; it does not change the Wayland output size, DPI, or client layout. It defaults off so guest multi-touch is preserved unless the host explicitly reserves two-finger gestures.
 
 Internally manages:
 - `SurfaceView` via `AndroidView` for the compositor surface

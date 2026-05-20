@@ -32,6 +32,7 @@ class CompositorServer {
 
     // IME
     external fun nativeCommitText(text: String)
+    external fun nativeDeleteSurroundingText(beforeLength: Int, afterLength: Int)
     external fun nativeImeShown()
     external fun nativeImeHidden()
     external fun nativeGetImePipeFd(): Int
