@@ -13,6 +13,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
@@ -336,6 +337,8 @@ private class CompositorSurfaceView(
         get() = surfaceState.session.input
 
     private val forwardedTouchIds = mutableSetOf<Int>()
+    private val keyboardFocusTapSlopPx = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+    private var pendingKeyboardFocusTap: KeyboardFocusTapCandidate? = null
     private var hostGestureActive = false
     private var suppressTouchForwardingUntilUp = false
     private var lastGestureFocusX = 0f
@@ -418,6 +421,7 @@ private class CompositorSurfaceView(
         }
 
         if (suppressTouchForwardingUntilUp) {
+            pendingKeyboardFocusTap = null
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 suppressTouchForwardingUntilUp = false
             }
@@ -508,6 +512,7 @@ private class CompositorSurfaceView(
     }
 
     private fun beginHostGesture(event: MotionEvent, skipPointerIndex: Int = -1) {
+        pendingKeyboardFocusTap = null
         hostGestureActive = true
         suppressTouchForwardingUntilUp = true
         val centroid = gestureCentroid(event, skipPointerIndex)
@@ -539,6 +544,7 @@ private class CompositorSurfaceView(
     }
 
     private fun cancelForwardedTouches(timestampMs: Long) {
+        pendingKeyboardFocusTap = null
         if (forwardedTouchIds.isEmpty()) return
         forwardedTouchIds.forEach { id ->
             input.sendTouchEvent(id, MotionEvent.ACTION_CANCEL, 0f, 0f, timestampMs)
@@ -555,6 +561,11 @@ private class CompositorSurfaceView(
             MotionEvent.ACTION_POINTER_DOWN,
             -> {
                 val id = event.getPointerId(actionIndex)
+                if (action == MotionEvent.ACTION_DOWN) {
+                    beginKeyboardFocusTap(event, actionIndex)
+                } else {
+                    pendingKeyboardFocusTap = null
+                }
                 val point = mapEventToGuest(event, actionIndex)
                 forwardedTouchIds.add(id)
                 input.sendTouchEvent(
@@ -564,6 +575,7 @@ private class CompositorSurfaceView(
                 )
             }
             MotionEvent.ACTION_MOVE -> {
+                updateKeyboardFocusTap(event)
                 for (i in 0 until event.pointerCount) {
                     val id = event.getPointerId(i)
                     if (id !in forwardedTouchIds) continue
@@ -588,11 +600,14 @@ private class CompositorSurfaceView(
                     )
                     forwardedTouchIds.remove(id)
                 }
-                if (action == MotionEvent.ACTION_UP) {
+                if (action == MotionEvent.ACTION_UP && consumeKeyboardFocusTap(event)) {
                     maybeShowKeyboardAfterUserFocus()
+                } else if (action == MotionEvent.ACTION_POINTER_UP) {
+                    pendingKeyboardFocusTap = null
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
+                pendingKeyboardFocusTap = null
                 for (id in forwardedTouchIds.toList()) {
                     input.sendTouchEvent(
                         id, MotionEvent.ACTION_CANCEL,
@@ -611,17 +626,29 @@ private class CompositorSurfaceView(
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                val button = pointerButtonFromMotionEvent(event)
+                if (button == BTN_LEFT) {
+                    beginKeyboardFocusTap(event, 0)
+                } else {
+                    pendingKeyboardFocusTap = null
+                }
                 input.sendPointerButton(
-                    pointerButtonFromMotionEvent(event), 0, event.eventTime,
+                    button, 0, event.eventTime,
                 )
             }
+            MotionEvent.ACTION_MOVE -> updateKeyboardFocusTap(event)
             MotionEvent.ACTION_UP -> {
                 input.sendPointerButton(
                     pointerButtonFromMotionEvent(event), 1, event.eventTime,
                 )
-                maybeShowKeyboardAfterUserFocus()
+                if (consumeKeyboardFocusTap(event)) {
+                    maybeShowKeyboardAfterUserFocus()
+                }
             }
             MotionEvent.ACTION_BUTTON_PRESS -> {
+                if (event.actionButton == MotionEvent.BUTTON_PRIMARY) {
+                    beginKeyboardFocusTap(event, 0)
+                }
                 input.sendPointerButton(
                     pointerButtonFromActionButton(event.actionButton), 0, event.eventTime,
                 )
@@ -630,11 +657,44 @@ private class CompositorSurfaceView(
                 input.sendPointerButton(
                     pointerButtonFromActionButton(event.actionButton), 1, event.eventTime,
                 )
-                if (event.actionButton == MotionEvent.BUTTON_PRIMARY) {
+                if (event.actionButton == MotionEvent.BUTTON_PRIMARY && consumeKeyboardFocusTap(event)) {
                     maybeShowKeyboardAfterUserFocus()
                 }
             }
+            MotionEvent.ACTION_CANCEL -> pendingKeyboardFocusTap = null
         }
+    }
+
+    private fun beginKeyboardFocusTap(event: MotionEvent, pointerIndex: Int) {
+        pendingKeyboardFocusTap = KeyboardFocusTapCandidate(
+            pointerId = event.getPointerId(pointerIndex),
+            downX = hostX(event, pointerIndex),
+            downY = hostY(event, pointerIndex),
+        )
+    }
+
+    private fun updateKeyboardFocusTap(event: MotionEvent) {
+        val candidate = pendingKeyboardFocusTap ?: return
+        val pointerIndex = event.findPointerIndex(candidate.pointerId)
+        if (pointerIndex < 0) {
+            pendingKeyboardFocusTap = null
+            return
+        }
+
+        val dx = hostX(event, pointerIndex) - candidate.downX
+        val dy = hostY(event, pointerIndex) - candidate.downY
+        if (dx * dx + dy * dy > keyboardFocusTapSlopPx * keyboardFocusTapSlopPx) {
+            pendingKeyboardFocusTap = null
+        }
+    }
+
+    private fun consumeKeyboardFocusTap(event: MotionEvent): Boolean {
+        val candidate = pendingKeyboardFocusTap ?: return false
+        updateKeyboardFocusTap(event)
+        val valid = pendingKeyboardFocusTap != null &&
+            event.getPointerId(event.actionIndex) == candidate.pointerId
+        pendingKeyboardFocusTap = null
+        return valid
     }
 
     private fun maybeShowKeyboardAfterUserFocus() {
@@ -720,6 +780,12 @@ private class CompositorSurfaceView(
         private const val BTN_LEFT = 0x110
         private const val BTN_RIGHT = 0x111
         private const val BTN_MIDDLE = 0x112
+
+        private data class KeyboardFocusTapCandidate(
+            val pointerId: Int,
+            val downX: Float,
+            val downY: Float,
+        )
 
         private fun pointerButtonFromMotionEvent(event: MotionEvent): Int {
             return when {

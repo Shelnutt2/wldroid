@@ -41,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,6 +72,7 @@ import nu.shel.wldroid.proot.EnvironmentState
 import nu.shel.wldroid.proot.ProotExecutor
 import nu.shel.wldroid.proot.RootfsEnvironment
 import nu.shel.wldroid.shims.ShimExtractor
+import nu.shel.wldroid.ui.CompositorKeyboardController
 import nu.shel.wldroid.ui.CompositorSurface
 import nu.shel.wldroid.ui.CompositorSurfaceState
 import nu.shel.wldroid.ui.InputMode
@@ -240,6 +242,7 @@ fun DesktopScreen(
     val compositorState by viewModel.compositorState.collectAsState()
     val logLines = remember { mutableStateListOf<String>() }
     val logListState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
 
     var selectedEnv by remember { mutableStateOf<RootfsEnvironment?>(null) }
     var selectedPreset by remember { mutableStateOf<DesktopAppPreset?>(null) }
@@ -248,6 +251,7 @@ fun DesktopScreen(
     var keyboardAutoShowBehavior by rememberSaveable {
         mutableStateOf(KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap)
     }
+    var compositorKeyboardController by remember { mutableStateOf<CompositorKeyboardController?>(null) }
     var envDropdownExpanded by remember { mutableStateOf(false) }
     var keyboardDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -315,6 +319,7 @@ fun DesktopScreen(
             showKeyboardFab = true,
             keyboardAutoShowBehavior = keyboardAutoShowBehavior,
             enableViewportGestures = true,
+            onKeyboardControllerChange = { compositorKeyboardController = it },
         )
 
         // Control panel
@@ -328,7 +333,13 @@ fun DesktopScreen(
             // Environment dropdown
             ExposedDropdownMenuBox(
                 expanded = envDropdownExpanded,
-                onExpandedChange = { envDropdownExpanded = it },
+                onExpandedChange = { expanded ->
+                    if (expanded) {
+                        focusManager.clearFocus()
+                        compositorKeyboardController?.hide()
+                    }
+                    envDropdownExpanded = expanded
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
@@ -362,7 +373,13 @@ fun DesktopScreen(
 
             ExposedDropdownMenuBox(
                 expanded = keyboardDropdownExpanded,
-                onExpandedChange = { keyboardDropdownExpanded = it },
+                onExpandedChange = { expanded ->
+                    if (expanded) {
+                        focusManager.clearFocus()
+                        compositorKeyboardController?.hide()
+                    }
+                    keyboardDropdownExpanded = expanded
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(

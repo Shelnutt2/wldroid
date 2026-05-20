@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -153,6 +154,7 @@ fun SettingsScreen(
     val debugLogging by viewModel.debugLogging.collectAsState()
     val cacheInfo by viewModel.cacheInfo.collectAsState()
     val versionInfo = remember { viewModel.getVersionInfo() }
+    val focusManager = LocalFocusManager.current
 
     var showClearRootfsDialog by remember { mutableStateOf(false) }
     var showClearShimsDialog by remember { mutableStateOf(false) }
@@ -171,7 +173,10 @@ fun SettingsScreen(
                 var gpuExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = gpuExpanded,
-                    onExpandedChange = { gpuExpanded = it },
+                    onExpandedChange = { expanded ->
+                        if (expanded) focusManager.clearFocus()
+                        gpuExpanded = expanded
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedTextField(
@@ -220,7 +225,10 @@ fun SettingsScreen(
                 var distroExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = distroExpanded,
-                    onExpandedChange = { distroExpanded = it },
+                    onExpandedChange = { expanded ->
+                        if (expanded) focusManager.clearFocus()
+                        distroExpanded = expanded
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedTextField(
