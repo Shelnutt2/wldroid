@@ -337,8 +337,9 @@ private class CompositorSurfaceView(
         get() = surfaceState.session.input
 
     private val forwardedTouchIds = mutableSetOf<Int>()
-    private val keyboardFocusTapSlopPx = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
-    private var pendingKeyboardFocusTap: KeyboardFocusTapCandidate? = null
+    private val keyboardFocusTapTracker = KeyboardFocusTapTracker(
+        slopPx = ViewConfiguration.get(context).scaledTouchSlop.toFloat(),
+    )
     private var hostGestureActive = false
     private var suppressTouchForwardingUntilUp = false
     private var lastGestureFocusX = 0f
@@ -421,7 +422,7 @@ private class CompositorSurfaceView(
         }
 
         if (suppressTouchForwardingUntilUp) {
-            pendingKeyboardFocusTap = null
+            keyboardFocusTapTracker.cancel()
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 suppressTouchForwardingUntilUp = false
             }
@@ -512,7 +513,7 @@ private class CompositorSurfaceView(
     }
 
     private fun beginHostGesture(event: MotionEvent, skipPointerIndex: Int = -1) {
-        pendingKeyboardFocusTap = null
+        keyboardFocusTapTracker.cancel()
         hostGestureActive = true
         suppressTouchForwardingUntilUp = true
         val centroid = gestureCentroid(event, skipPointerIndex)
@@ -544,7 +545,7 @@ private class CompositorSurfaceView(
     }
 
     private fun cancelForwardedTouches(timestampMs: Long) {
-        pendingKeyboardFocusTap = null
+        keyboardFocusTapTracker.cancel()
         if (forwardedTouchIds.isEmpty()) return
         forwardedTouchIds.forEach { id ->
             input.sendTouchEvent(id, MotionEvent.ACTION_CANCEL, 0f, 0f, timestampMs)
@@ -564,7 +565,7 @@ private class CompositorSurfaceView(
                 if (action == MotionEvent.ACTION_DOWN) {
                     beginKeyboardFocusTap(event, actionIndex)
                 } else {
-                    pendingKeyboardFocusTap = null
+                    keyboardFocusTapTracker.cancel()
                 }
                 val point = mapEventToGuest(event, actionIndex)
                 forwardedTouchIds.add(id)
@@ -603,11 +604,11 @@ private class CompositorSurfaceView(
                 if (action == MotionEvent.ACTION_UP && consumeKeyboardFocusTap(event)) {
                     maybeShowKeyboardAfterUserFocus()
                 } else if (action == MotionEvent.ACTION_POINTER_UP) {
-                    pendingKeyboardFocusTap = null
+                    keyboardFocusTapTracker.cancel()
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
-                pendingKeyboardFocusTap = null
+                keyboardFocusTapTracker.cancel()
                 for (id in forwardedTouchIds.toList()) {
                     input.sendTouchEvent(
                         id, MotionEvent.ACTION_CANCEL,
@@ -630,7 +631,7 @@ private class CompositorSurfaceView(
                 if (button == BTN_LEFT) {
                     beginKeyboardFocusTap(event, 0)
                 } else {
-                    pendingKeyboardFocusTap = null
+                    keyboardFocusTapTracker.cancel()
                 }
                 input.sendPointerButton(
                     button, 0, event.eventTime,
@@ -661,40 +662,40 @@ private class CompositorSurfaceView(
                     maybeShowKeyboardAfterUserFocus()
                 }
             }
-            MotionEvent.ACTION_CANCEL -> pendingKeyboardFocusTap = null
+            MotionEvent.ACTION_CANCEL -> keyboardFocusTapTracker.cancel()
         }
     }
 
     private fun beginKeyboardFocusTap(event: MotionEvent, pointerIndex: Int) {
-        pendingKeyboardFocusTap = KeyboardFocusTapCandidate(
+        keyboardFocusTapTracker.begin(
             pointerId = event.getPointerId(pointerIndex),
-            downX = hostX(event, pointerIndex),
-            downY = hostY(event, pointerIndex),
+            x = hostX(event, pointerIndex),
+            y = hostY(event, pointerIndex),
         )
     }
 
     private fun updateKeyboardFocusTap(event: MotionEvent) {
-        val candidate = pendingKeyboardFocusTap ?: return
-        val pointerIndex = event.findPointerIndex(candidate.pointerId)
+        val pointerId = keyboardFocusTapTracker.pendingPointerId ?: return
+        val pointerIndex = event.findPointerIndex(pointerId)
         if (pointerIndex < 0) {
-            pendingKeyboardFocusTap = null
+            keyboardFocusTapTracker.cancel()
             return
         }
 
-        val dx = hostX(event, pointerIndex) - candidate.downX
-        val dy = hostY(event, pointerIndex) - candidate.downY
-        if (dx * dx + dy * dy > keyboardFocusTapSlopPx * keyboardFocusTapSlopPx) {
-            pendingKeyboardFocusTap = null
-        }
+        keyboardFocusTapTracker.update(
+            pointerId = pointerId,
+            x = hostX(event, pointerIndex),
+            y = hostY(event, pointerIndex),
+        )
     }
 
     private fun consumeKeyboardFocusTap(event: MotionEvent): Boolean {
-        val candidate = pendingKeyboardFocusTap ?: return false
-        updateKeyboardFocusTap(event)
-        val valid = pendingKeyboardFocusTap != null &&
-            event.getPointerId(event.actionIndex) == candidate.pointerId
-        pendingKeyboardFocusTap = null
-        return valid
+        val pointerIndex = event.actionIndex
+        return keyboardFocusTapTracker.consume(
+            pointerId = event.getPointerId(pointerIndex),
+            x = hostX(event, pointerIndex),
+            y = hostY(event, pointerIndex),
+        )
     }
 
     private fun maybeShowKeyboardAfterUserFocus() {
@@ -780,12 +781,6 @@ private class CompositorSurfaceView(
         private const val BTN_LEFT = 0x110
         private const val BTN_RIGHT = 0x111
         private const val BTN_MIDDLE = 0x112
-
-        private data class KeyboardFocusTapCandidate(
-            val pointerId: Int,
-            val downX: Float,
-            val downY: Float,
-        )
 
         private fun pointerButtonFromMotionEvent(event: MotionEvent): Int {
             return when {
