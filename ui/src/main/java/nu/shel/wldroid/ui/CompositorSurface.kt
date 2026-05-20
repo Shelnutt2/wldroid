@@ -112,6 +112,7 @@ class CompositorKeyboardController internal constructor(
  * @param minZoom Minimum host viewport zoom; does not affect Wayland output size.
  * @param maxZoom Maximum host viewport zoom; does not affect Wayland output size.
  * @param keyboardPanBehavior How the host viewport accounts for Android IME overlap.
+ * @param keyboardAutoShowBehavior When the Android soft keyboard should auto-open.
  */
 @Composable
 fun CompositorSurface(
@@ -127,6 +128,7 @@ fun CompositorSurface(
     minZoom: Float = 1f,
     maxZoom: Float = 4f,
     keyboardPanBehavior: KeyboardPanBehavior = KeyboardPanBehavior.PanWithinImeSafeArea,
+    keyboardAutoShowBehavior: KeyboardAutoShowBehavior = KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap,
 ) {
     val compositorState by surfaceState.compositorState.collectAsState()
     val clientCount by surfaceState.clientCount.collectAsState()
@@ -193,6 +195,7 @@ fun CompositorSurface(
             CompositorAndroidView(
                 surfaceState = surfaceState,
                 inputMode = inputMode,
+                keyboardAutoShowBehavior = keyboardAutoShowBehavior,
                 enableViewportGestures = enableViewportGestures,
                 onViewChanged = { surfaceViewRef = it },
                 modifier = Modifier.fillMaxSize(),
@@ -220,6 +223,7 @@ fun CompositorSurface(
 private fun CompositorAndroidView(
     surfaceState: CompositorSurfaceState,
     inputMode: InputMode,
+    keyboardAutoShowBehavior: KeyboardAutoShowBehavior,
     enableViewportGestures: Boolean,
     onViewChanged: (CompositorSurfaceView?) -> Unit,
     modifier: Modifier = Modifier,
@@ -246,6 +250,7 @@ private fun CompositorAndroidView(
                     context = context,
                     surfaceState = surfaceState,
                     inputMode = inputMode,
+                    keyboardAutoShowBehavior = keyboardAutoShowBehavior,
                     enableViewportGestures = enableViewportGestures,
                 )
                 onViewChanged(view)
@@ -290,6 +295,7 @@ private fun CompositorAndroidView(
         update = { container ->
             val view = container.getChildAt(0) as? CompositorSurfaceView ?: return@AndroidView
             view.inputMode = inputMode
+            view.keyboardAutoShowBehavior = keyboardAutoShowBehavior
             view.enableViewportGestures = enableViewportGestures
             view.pivotX = 0f
             view.pivotY = 0f
@@ -310,6 +316,7 @@ private class CompositorSurfaceView(
     context: Context,
     private val surfaceState: CompositorSurfaceState,
     inputMode: InputMode,
+    keyboardAutoShowBehavior: KeyboardAutoShowBehavior,
     enableViewportGestures: Boolean,
 ) : SurfaceView(context) {
 
@@ -322,6 +329,7 @@ private class CompositorSurfaceView(
                 endHostGesture(suppressUntilUp = false)
             }
         }
+    var keyboardAutoShowBehavior: KeyboardAutoShowBehavior = keyboardAutoShowBehavior
     var enableViewportGestures: Boolean = enableViewportGestures
 
     private val input: CompositorInput
@@ -580,6 +588,9 @@ private class CompositorSurfaceView(
                     )
                     forwardedTouchIds.remove(id)
                 }
+                if (action == MotionEvent.ACTION_UP) {
+                    maybeShowKeyboardAfterUserFocus()
+                }
             }
             MotionEvent.ACTION_CANCEL -> {
                 for (id in forwardedTouchIds.toList()) {
@@ -608,6 +619,7 @@ private class CompositorSurfaceView(
                 input.sendPointerButton(
                     pointerButtonFromMotionEvent(event), 1, event.eventTime,
                 )
+                maybeShowKeyboardAfterUserFocus()
             }
             MotionEvent.ACTION_BUTTON_PRESS -> {
                 input.sendPointerButton(
@@ -618,7 +630,25 @@ private class CompositorSurfaceView(
                 input.sendPointerButton(
                     pointerButtonFromActionButton(event.actionButton), 1, event.eventTime,
                 )
+                if (event.actionButton == MotionEvent.BUTTON_PRIMARY) {
+                    maybeShowKeyboardAfterUserFocus()
+                }
             }
+        }
+    }
+
+    private fun maybeShowKeyboardAfterUserFocus() {
+        if (!keyboardAutoShowBehavior.opensOnFocusTap) return
+        if (!inputMode.hasKeyboardInput || surfaceState.isKeyboardVisible.value) return
+
+        post {
+            if (!isAttachedToWindow) return@post
+            if (!keyboardAutoShowBehavior.opensOnFocusTap) return@post
+            if (!inputMode.hasKeyboardInput || surfaceState.isKeyboardVisible.value) return@post
+
+            val imm = context.getSystemService(InputMethodManager::class.java)
+            imm?.restartInput(this)
+            showKeyboard(this, surfaceState, notifyNative = true)
         }
     }
 

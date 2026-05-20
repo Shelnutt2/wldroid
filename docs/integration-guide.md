@@ -238,6 +238,7 @@ for an XWayland binary in the proot environment.
 `CompositorSurface` defaults are designed to work without app-side glue:
 
 - Software keyboard requests from focused Wayland text inputs are handled automatically through the native IME pipe and Android `InputConnection`.
+- `KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap` is the default, so a tap/click on the compositor surface also opens the Android IME as a fallback for XWayland/Electron apps such as VS Code that can accept synthetic key input without advertising text-input focus. Use `TextInputRequestsOnly` to disable this fallback.
 - The built-in keyboard FAB calls `CompositorKeyboardController.toggle()` and respects `InputMode`; disabling keyboard input hides/restarts the IME.
 - `KeyboardPanBehavior.PanWithinImeSafeArea` is the default, allowing the host viewport to pan content above the Android keyboard. Use `KeyboardPanBehavior.None` if your surrounding UI handles IME overlap itself.
 - Host viewport gestures default to disabled. Set `enableViewportGestures = true` only if Android should reserve two-finger pinch/pan for viewport zoom instead of forwarding those gestures to the guest.
