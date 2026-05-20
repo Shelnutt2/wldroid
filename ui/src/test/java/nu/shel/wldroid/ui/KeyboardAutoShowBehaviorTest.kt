@@ -11,4 +11,10 @@ class KeyboardAutoShowBehaviorTest {
             KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap,
         ).inOrder()
     }
+
+    @Test
+    fun `focus tap fallback is enabled only for tap fallback mode`() {
+        assertThat(KeyboardAutoShowBehavior.TextInputRequestsOnly.opensOnFocusTap).isFalse()
+        assertThat(KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap.opensOnFocusTap).isTrue()
+    }
 }
