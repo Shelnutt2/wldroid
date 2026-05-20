@@ -1,6 +1,10 @@
 package nu.shel.wldroid.ui
 
 import android.content.Context
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
+import android.system.StructPollfd
 import android.text.InputType
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -40,9 +44,50 @@ import kotlinx.coroutines.withContext
 import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorInput
 import nu.shel.wldroid.compositor.CompositorState
-import java.io.FileInputStream
 
 internal const val DEFAULT_ENABLE_VIEWPORT_GESTURES = false
+
+
+/**
+ * Public controller for Android soft-keyboard actions associated with a [CompositorSurface].
+ *
+ * Instances are provided by [CompositorSurface]'s `onKeyboardControllerChange` callback while
+ * the underlying Android view is attached. Showing or hiding the keyboard does not change the
+ * guest Wayland output size or DPI.
+ */
+class CompositorKeyboardController internal constructor(
+    private val surfaceState: CompositorSurfaceState,
+    private val viewProvider: () -> View?,
+) {
+    /** Request that Android show the soft keyboard and notify native IME state by default. */
+    fun show(notifyNative: Boolean = true): Boolean {
+        return showKeyboard(viewProvider(), surfaceState, notifyNative)
+    }
+
+    /** Hide the Android soft keyboard and notify native IME state by default. */
+    fun hide(notifyNative: Boolean = true) {
+        hideKeyboard(viewProvider(), surfaceState, notifyNative)
+    }
+
+    /** Toggle keyboard visibility if keyboard input is currently enabled. */
+    fun toggle(keyboardInputEnabled: Boolean = true): Boolean {
+        return if (surfaceState.isKeyboardVisible.value) {
+            hide()
+            false
+        } else if (keyboardInputEnabled) {
+            show()
+        } else {
+            false
+        }
+    }
+
+    /** Restart Android input so changes to text-editor capability are visible to the IME. */
+    fun restartInput() {
+        val targetView = viewProvider() ?: return
+        val imm = targetView.context.getSystemService(InputMethodManager::class.java)
+        imm?.restartInput(targetView)
+    }
+}
 
 /**
  * Flagship composable that embeds a Wayland compositor surface.
@@ -58,6 +103,7 @@ internal const val DEFAULT_ENABLE_VIEWPORT_GESTURES = false
  * @param config Compositor configuration (cache dir, XKB path, GPU mode, etc.).
  * @param onStateChange Called when the compositor lifecycle state changes.
  * @param onClientCountChange Called when the number of connected Wayland clients changes.
+ * @param onKeyboardControllerChange Called with a keyboard controller while the surface view is attached.
  * @param inputMode Controls which input events are forwarded to the compositor.
  * @param showKeyboardFab Whether to show a floating action button for toggling the keyboard.
  * @param enableViewportGestures Whether two-finger host pinch/pan gestures are enabled. Defaults off so guest multi-touch is forwarded.
@@ -72,6 +118,7 @@ fun CompositorSurface(
     surfaceState: CompositorSurfaceState = rememberCompositorSurfaceState(config),
     onStateChange: (CompositorState) -> Unit = {},
     onClientCountChange: (Int) -> Unit = {},
+    onKeyboardControllerChange: (CompositorKeyboardController?) -> Unit = {},
     inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
     enableViewportGestures: Boolean = DEFAULT_ENABLE_VIEWPORT_GESTURES,
@@ -84,6 +131,9 @@ fun CompositorSurface(
     val isKeyboardVisible by surfaceState.isKeyboardVisible.collectAsState()
     var surfaceViewRef by remember { mutableStateOf<CompositorSurfaceView?>(null) }
     val currentInputMode = rememberUpdatedState(inputMode)
+    val keyboardController = remember(surfaceState) {
+        CompositorKeyboardController(surfaceState) { surfaceViewRef }
+    }
 
     val density = LocalDensity.current
     val imeBottomInset = WindowInsets.ime.getBottom(density)
@@ -101,6 +151,17 @@ fun CompositorSurface(
             },
         )
         surfaceState.setKeyboardVisible(imeBottomInset > 0)
+    }
+
+    LaunchedEffect(surfaceViewRef) {
+        onKeyboardControllerChange(if (surfaceViewRef != null) keyboardController else null)
+    }
+
+    LaunchedEffect(inputMode.hasKeyboardInput, surfaceViewRef) {
+        keyboardController.restartInput()
+        if (!inputMode.hasKeyboardInput) {
+            keyboardController.hide(notifyNative = true)
+        }
     }
 
     // Notify callers of state changes.
@@ -136,11 +197,7 @@ fun CompositorSurface(
             KeyboardToggleFab(
                 isKeyboardVisible = isKeyboardVisible,
                 onToggle = {
-                    toggleKeyboard(
-                        surfaceState = surfaceState,
-                        view = surfaceViewRef,
-                        keyboardInputEnabled = inputMode.hasKeyboardInput,
-                    )
+                    keyboardController.toggle(inputMode.hasKeyboardInput)
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -306,6 +363,14 @@ private class CompositorSurfaceView(
                 afterLength: Int,
             ): Boolean {
                 input.deleteSurroundingText(beforeLength, afterLength)
+                return true
+            }
+
+            override fun deleteSurroundingTextInCodePoints(
+                beforeLength: Int,
+                afterLength: Int,
+            ): Boolean {
+                input.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
                 return true
             }
 
@@ -645,25 +710,43 @@ private suspend fun readImePipe(
 
     withContext(Dispatchers.IO) {
         val pfd = android.os.ParcelFileDescriptor.fromFd(fd)
+        val pollFd = StructPollfd().apply {
+            this.fd = pfd.fileDescriptor
+            events = OsConstants.POLLIN.toShort()
+        }
+        val buffer = ByteArray(1)
         try {
-            val fis = FileInputStream(pfd.fileDescriptor)
-            val buffer = ByteArray(1)
             while (isActive) {
-                val bytesRead = fis.read(buffer)
-                if (bytesRead <= 0) break
-                when (buffer[0].toInt().toChar()) {
-                    'S' -> withContext(Dispatchers.Main) {
-                        if (keyboardInputEnabled()) {
-                            showKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                try {
+                    pollFd.revents = 0.toShort()
+                    val ready = Os.poll(arrayOf(pollFd), 250)
+                    if (ready <= 0) continue
+
+                    val revents = pollFd.revents.toInt()
+                    if ((revents and (OsConstants.POLLERR or OsConstants.POLLHUP or OsConstants.POLLNVAL)) != 0) {
+                        break
+                    }
+                    if ((revents and OsConstants.POLLIN) == 0) continue
+
+                    val bytesRead = Os.read(pfd.fileDescriptor, buffer, 0, buffer.size)
+                    if (bytesRead <= 0) break
+                    when (buffer[0].toInt().toChar()) {
+                        'S' -> withContext(Dispatchers.Main) {
+                            if (keyboardInputEnabled()) {
+                                showKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                            }
+                        }
+                        'H' -> withContext(Dispatchers.Main) {
+                            hideKeyboard(viewProvider(), surfaceState, notifyNative = false)
                         }
                     }
-                    'H' -> withContext(Dispatchers.Main) {
-                        hideKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                } catch (e: ErrnoException) {
+                    if (e.errno == OsConstants.EAGAIN || e.errno == OsConstants.EINTR) {
+                        continue
                     }
+                    break
                 }
             }
-        } catch (_: Exception) {
-            // Pipe closed or error — ignore
         } finally {
             try {
                 pfd.close()
@@ -674,35 +757,22 @@ private suspend fun readImePipe(
     }
 }
 
-/** Toggles the software keyboard for the given compositor state. */
-private fun toggleKeyboard(
-    surfaceState: CompositorSurfaceState,
-    view: View?,
-    keyboardInputEnabled: Boolean,
-) {
-    val visible = surfaceState.isKeyboardVisible.value
-    if (visible) {
-        hideKeyboard(view, surfaceState, notifyNative = true)
-    } else if (keyboardInputEnabled) {
-        showKeyboard(view, surfaceState, notifyNative = true)
-    }
-}
-
 private fun showKeyboard(
     view: View?,
     surfaceState: CompositorSurfaceState,
     notifyNative: Boolean,
-) {
-    val targetView = view ?: return
+): Boolean {
+    val targetView = view ?: return false
     targetView.requestFocus()
     val imm = targetView.context.getSystemService(InputMethodManager::class.java)
     val accepted = imm?.showSoftInput(targetView, InputMethodManager.SHOW_IMPLICIT) == true
-    if (!accepted) return
+    if (!accepted) return false
 
     surfaceState.setKeyboardVisible(true)
     if (notifyNative) {
         surfaceState.session.input.notifyImeShown()
     }
+    return true
 }
 
 private fun hideKeyboard(

@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 struct compositor_server;
+struct wlr_surface;
 
 /**
  * Initialize text input support: creates zwp_text_input_manager_v3 global,
@@ -42,7 +43,31 @@ void text_input_handle_delete_surrounding_text(struct compositor_server *server,
                                                 uint32_t before_length,
                                                 uint32_t after_length);
 
-/** Whether a zwp_text_input_v3 resource is currently enabled. */
+/**
+ * Handle delete-surrounding-text from Android IME using code-point counts.
+ * Thread-safe (can be called from JNI thread).
+ */
+void text_input_handle_delete_surrounding_text_in_code_points(
+    struct compositor_server *server,
+    uint32_t before_length,
+    uint32_t after_length);
+
+/**
+ * Notify text-input-v3 resources that keyboard focus entered a surface.
+ * Must be called on the compositor thread after wl_keyboard focus changes.
+ */
+void text_input_handle_keyboard_enter(struct compositor_server *server,
+                                      struct wlr_surface *surface);
+
+/**
+ * Notify text-input-v3 resources that keyboard focus left a surface.
+ * Must be called on the compositor thread before a focused surface is destroyed
+ * or when focus moves away. Passing NULL clears all tracked text-input focus.
+ */
+void text_input_handle_keyboard_leave(struct compositor_server *server,
+                                      struct wlr_surface *surface);
+
+/** Whether a focused zwp_text_input_v3 resource is currently enabled. */
 bool text_input_has_active_text_input(void);
 
 /** Notify the compositor that the Android soft keyboard was shown. */

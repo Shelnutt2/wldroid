@@ -73,19 +73,30 @@ If already cloned without `--recursive`, run `git submodule update --init --recu
 The `:ui` module provides a Compose component that renders a Wayland compositor inline:
 
 ```kotlin
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import nu.shel.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.ui.CompositorKeyboardController
+import nu.shel.wldroid.ui.rememberCompositorSurfaceState
 import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorState
 
 @Composable
 fun MyScreen() {
+    val config = CompositorConfig(
+        cacheDir = context.cacheDir.absolutePath,
+        xwaylandEnabled = true,
+        gpuMode = "AUTO",
+    )
+    val surfaceState = rememberCompositorSurfaceState(config)
+    var keyboardController by remember { mutableStateOf<CompositorKeyboardController?>(null) }
+
     CompositorSurface(
         modifier = Modifier.fillMaxSize(),
-        config = CompositorConfig(
-            cacheDir = context.cacheDir.absolutePath,
-            xwaylandEnabled = true,
-            gpuMode = "AUTO",
-        ),
+        config = config,
+        surfaceState = surfaceState,
         onStateChange = { state ->
             when (state) {
                 CompositorState.RUNNING -> Log.d("WLDroid", "Compositor ready")
@@ -96,11 +107,17 @@ fun MyScreen() {
         onClientCountChange = { count ->
             Log.d("WLDroid", "$count Wayland clients connected")
         },
-        // Optional host-side pinch/pan. Guest output size/DPI remains fixed.
+        onKeyboardControllerChange = { keyboardController = it },
+        // Optional host-side pinch/pan. Defaults off to preserve guest multi-touch.
+        // This transforms only the Android viewport; guest output size/DPI stays fixed.
         enableViewportGestures = true,
     )
 }
 ```
+
+`CompositorSurface` works out of the box with software-keyboard handling and an optional keyboard FAB. Host viewport pinch-to-zoom/pan is Android-native and never resizes the Wayland output or changes guest DPI. It is disabled by default (`enableViewportGestures = false`) so two-finger guest gestures continue to reach apps; enable it only when you want Android to reserve two-finger pinch/pan for viewport zoom.
+
+Use `surfaceState.viewport` to observe zoom/pan, `surfaceState.zoomIn()` / `zoomOut()` / `setZoom()` / `panBy()` / `resetZoom()` for toolbar controls, and `surfaceState.mapViewToGuest()` when translating custom overlay coordinates. Use `onKeyboardControllerChange` to get a `CompositorKeyboardController` for `show()`, `hide()`, `toggle()`, and `restartInput()` calls.
 
 ### Launch a Desktop App with DesktopLauncher
 

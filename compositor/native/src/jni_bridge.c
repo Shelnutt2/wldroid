@@ -20,6 +20,7 @@
  *   nativeSendPointerScroll(float, float, long)
  *   nativeCommitText(String)
  *   nativeDeleteSurroundingText(int, int)
+ *   nativeDeleteSurroundingTextInCodePoints(int, int)
  *   nativeImeShown()
  *   nativeImeHidden()
  *   nativeGetImePipeFd() → int
@@ -57,6 +58,8 @@
 #ifndef JNI_CLASS_PATH
 #define JNI_CLASS_PATH "nu/shel/wldroid/compositor/CompositorServer"
 #endif
+
+#define DELETE_SURROUNDING_MAX_COUNT 256
 
 /* ------------------------------------------------------------------ */
 /* Global state (single compositor instance)                           */
@@ -375,16 +378,34 @@ static void native_commit_text(JNIEnv *env, jobject thiz, jstring text) {
     pthread_mutex_unlock(&g_server_mutex);
 }
 
+static uint32_t sanitize_delete_count(jint count) {
+    if (count <= 0) return 0;
+    if (count > DELETE_SURROUNDING_MAX_COUNT) return DELETE_SURROUNDING_MAX_COUNT;
+    return (uint32_t)count;
+}
+
 static void native_delete_surrounding_text(JNIEnv *env, jobject thiz,
                                            jint before_length,
                                            jint after_length) {
     (void)env; (void)thiz;
-    if (before_length < 0) before_length = 0;
-    if (after_length < 0) after_length = 0;
+    uint32_t before = sanitize_delete_count(before_length);
+    uint32_t after = sanitize_delete_count(after_length);
     pthread_mutex_lock(&g_server_mutex);
     if (g_server) {
-        text_input_handle_delete_surrounding_text(
-            g_server, (uint32_t)before_length, (uint32_t)after_length);
+        text_input_handle_delete_surrounding_text(g_server, before, after);
+    }
+    pthread_mutex_unlock(&g_server_mutex);
+}
+
+static void native_delete_surrounding_text_in_code_points(JNIEnv *env, jobject thiz,
+                                                          jint before_length,
+                                                          jint after_length) {
+    (void)env; (void)thiz;
+    uint32_t before = sanitize_delete_count(before_length);
+    uint32_t after = sanitize_delete_count(after_length);
+    pthread_mutex_lock(&g_server_mutex);
+    if (g_server) {
+        text_input_handle_delete_surrounding_text_in_code_points(g_server, before, after);
     }
     pthread_mutex_unlock(&g_server_mutex);
 }
@@ -518,6 +539,8 @@ static const JNINativeMethod g_methods[] = {
                                 (void *)native_commit_text},
     {"nativeDeleteSurroundingText", "(II)V",
                                 (void *)native_delete_surrounding_text},
+    {"nativeDeleteSurroundingTextInCodePoints", "(II)V",
+                                (void *)native_delete_surrounding_text_in_code_points},
     {"nativeImeShown",         "()V",
                                 (void *)native_ime_shown},
     {"nativeImeHidden",        "()V",
