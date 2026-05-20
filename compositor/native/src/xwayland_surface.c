@@ -26,6 +26,7 @@
 
 #include "compositor_server.h"
 #include "xwayland_surface.h"
+#include "text_input_handler.h"
 
 /* ------------------------------------------------------------------ */
 /* Per-surface tracking state                                          */
@@ -74,6 +75,7 @@ static void focus_xwayland_view(struct xwayland_view *view) {
         wlr_seat_keyboard_notify_enter(seat, xsurface->surface,
             NULL, 0, NULL);
     }
+    text_input_handle_keyboard_enter(server, xsurface->surface);
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,6 +112,11 @@ static void on_xwayland_surface_map(struct wl_listener *listener, void *data) {
 static void on_xwayland_surface_unmap(struct wl_listener *listener, void *data) {
     (void)data;
     struct xwayland_view *view = wl_container_of(listener, view, unmap);
+    struct wlr_surface *surface = view->xsurface ? view->xsurface->surface : NULL;
+    if (surface && view->server->seat &&
+        view->server->seat->keyboard_state.focused_surface == surface) {
+        text_input_handle_keyboard_leave(view->server, surface);
+    }
 
     if (view->scene_tree) {
         wlr_scene_node_destroy(&view->scene_tree->node);
@@ -137,6 +144,9 @@ static void on_xwayland_surface_dissociate(struct wl_listener *listener,
                                             void *data) {
     (void)data;
     struct xwayland_view *view = wl_container_of(listener, view, dissociate);
+    if (view->xsurface && view->xsurface->surface) {
+        text_input_handle_keyboard_leave(view->server, view->xsurface->surface);
+    }
 
     wl_list_remove(&view->map.link);
     wl_list_remove(&view->unmap.link);

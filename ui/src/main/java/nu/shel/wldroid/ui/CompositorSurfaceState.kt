@@ -62,9 +62,45 @@ class CompositorSurfaceState(
         updateViewport { it.zoomBy(factor, focalX, focalY) }
     }
 
+    /** Set absolute host viewport zoom around a focal point in Android view pixels. */
+    fun setZoom(scale: Float, focalX: Float? = null, focalY: Float? = null) {
+        updateViewport { current ->
+            val fx = focalX ?: (current.viewWidth / 2f)
+            val fy = focalY ?: (current.viewHeight / 2f)
+            if (current.scale <= 0f) {
+                current.copy(scale = scale).clamped()
+            } else {
+                current.zoomBy(scale / current.scale, fx, fy)
+            }
+        }
+    }
+
+    /** Convenience zoom-in helper for downstream toolbar/buttons. */
+    fun zoomIn(factor: Float = 1.25f) {
+        val current = _viewport.value
+        zoomBy(factor, current.viewWidth / 2f, current.viewHeight / 2f)
+    }
+
+    /** Convenience zoom-out helper for downstream toolbar/buttons. */
+    fun zoomOut(factor: Float = 1.25f) {
+        if (factor <= 0f) return
+        val current = _viewport.value
+        zoomBy(1f / factor, current.viewWidth / 2f, current.viewHeight / 2f)
+    }
+
     /** Pan the host viewport by Android view pixels. */
     fun panBy(dx: Float, dy: Float) {
         updateViewport { it.panBy(dx, dy) }
+    }
+
+    /** Set absolute host viewport pan in Android view pixels. */
+    fun setPan(panX: Float, panY: Float) {
+        updateViewport { it.copy(panX = panX, panY = panY).clamped() }
+    }
+
+    /** Set absolute host viewport zoom and pan in Android view pixels. */
+    fun setViewport(scale: Float, panX: Float, panY: Float) {
+        updateViewport { it.copy(scale = scale, panX = panX, panY = panY).clamped() }
     }
 
     /** Map an Android view coordinate to the fixed Wayland guest/output coordinate space. */

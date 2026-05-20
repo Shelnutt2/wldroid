@@ -27,6 +27,7 @@
 
 #include "compositor_server.h"
 #include "input_handler.h"
+#include "text_input_handler.h"
 #include "keycode_map.h"
 
 #define LOG_TAG "InputHandler"
@@ -180,6 +181,7 @@ static void dispatch_key(struct compositor_server *server,
             wlr_seat_keyboard_notify_enter(server->seat, target,
                 server->keyboard->keycodes, server->keyboard->num_keycodes,
                 &server->keyboard->modifiers);
+            text_input_handle_keyboard_enter(server, target);
 
         }
     }
@@ -260,6 +262,7 @@ static void dispatch_touch_down(struct compositor_server *server,
             wlr_seat_keyboard_notify_enter(server->seat, surface,
                                            kb->keycodes, kb->num_keycodes,
                                            &kb->modifiers);
+            text_input_handle_keyboard_enter(server, surface);
         }
     }
 

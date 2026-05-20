@@ -244,6 +244,7 @@ static void focus_toplevel(struct compositor_toplevel *ct) {
         } else {
             wlr_seat_keyboard_notify_enter(seat, surface, NULL, 0, NULL);
         }
+        text_input_handle_keyboard_enter(server, surface);
     }
 
     /* Move to front of list (MRU order). */
@@ -284,6 +285,13 @@ static void on_toplevel_unmap(struct wl_listener *listener, void *data) {
     (void)data;
     struct compositor_toplevel *ct = wl_container_of(listener, ct, unmap);
 
+    struct wlr_surface *surface = ct->toplevel && ct->toplevel->base
+        ? ct->toplevel->base->surface : NULL;
+    if (surface && ct->server->seat &&
+        ct->server->seat->keyboard_state.focused_surface == surface) {
+        text_input_handle_keyboard_leave(ct->server, surface);
+    }
+
     /* If this was focused, focus the next toplevel in the list. */
     if (ct == get_focused_toplevel(ct->server)) {
         struct compositor_toplevel *next = NULL;
@@ -297,6 +305,11 @@ static void on_toplevel_unmap(struct wl_listener *listener, void *data) {
 static void on_toplevel_destroy(struct wl_listener *listener, void *data) {
     (void)data;
     struct compositor_toplevel *ct = wl_container_of(listener, ct, destroy);
+    struct wlr_surface *surface = ct->toplevel && ct->toplevel->base
+        ? ct->toplevel->base->surface : NULL;
+    if (surface) {
+        text_input_handle_keyboard_leave(ct->server, surface);
+    }
     wl_list_remove(&ct->link);
     wl_list_remove(&ct->map.link);
     wl_list_remove(&ct->unmap.link);

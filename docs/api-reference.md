@@ -17,10 +17,18 @@ class CompositorServer {
     }
 
     // Lifecycle
-    external fun nativeStartCompositor(surface: Surface, cacheDir: String, xkbBasePath: String)
+    external fun nativeStartCompositor(
+        surface: Surface,
+        cacheDir: String,
+        xkbBasePath: String,
+        xwaylandEnabled: Boolean,
+    )
     external fun nativeStopCompositor()
+    external fun nativePauseCompositor()
+    external fun nativeResumeCompositor(surface: Surface)
     external fun nativeGetSocketName(): String?
     external fun nativeGetClientCount(): Int
+    external fun nativeGetXWaylandDisplay(): String?
     external fun nativeResizeOutput(width: Int, height: Int)
 
     // Input events
@@ -32,9 +40,12 @@ class CompositorServer {
 
     // IME (Input Method Editor)
     external fun nativeCommitText(text: String)
+    external fun nativeDeleteSurroundingText(beforeLength: Int, afterLength: Int)
+    external fun nativeDeleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int)
     external fun nativeImeShown()
     external fun nativeImeHidden()
     external fun nativeGetImePipeFd(): Int
+    external fun nativeHasActiveTextInput(): Boolean
 
     // Testing
     external fun nativeStartTestClient()
@@ -77,7 +88,6 @@ Lifecycle notes:
 - `stopAsync()` runs shutdown on a background thread to avoid Mali GPU SIGSEGV.
 - `xwaylandDisplay` is null when `CompositorConfig.xwaylandEnabled` is false, when XWayland failed to start, or before `start()` completes.
 - `pause()` and `resume()` manage the native window lifecycle for Android Activity start/stop.
-```
 
 ### CompositorConfig
 
@@ -115,9 +125,12 @@ enum class CompositorState {
     IDLE,       // Not started
     STARTING,   // Spawning native thread
     RUNNING,    // Compositor active, accepting Wayland clients
+    PAUSED,     // Native window detached; clients may remain connected
     STOPPING,   // Shutting down
     STOPPED,    // Clean shutdown
-    ERROR,      // Fatal error
+    ERROR;      // Fatal error
+
+    val isRunning: Boolean // true for RUNNING and PAUSED
 }
 ```
 
@@ -140,11 +153,17 @@ class CompositorInput(server: CompositorServer) {
 
     // IME
     fun commitText(text: String)
+    fun deleteSurroundingText(beforeLength: Int, afterLength: Int)
+    fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int)
     fun notifyImeShown()
     fun notifyImeHidden()
     fun getImePipeFd(): Int
+    fun hasActiveTextInput(): Boolean
 }
 ```
+
+`deleteSurroundingText()` accepts Android/Java UTF-16 counts. `deleteSurroundingTextInCodePoints()` is for IMEs or custom views that already provide Unicode code-point counts. Counts are clamped natively to keep fallback synthetic delete handling bounded. `getImePipeFd()` is a low-level signal pipe used by custom Android views to learn when the focused Wayland text input asks the host IME to show (`S`) or hide (`H`). Managed `CompositorSurface` reads this pipe for you.
+
 
 ---
 
@@ -639,6 +658,8 @@ class CompositorConfigFactory(
         xkbBasePath: String = "",
         gpuMode: String = "AUTO",
     ): CompositorConfig
+}
+```
 
 ### DesktopSession
 
@@ -746,10 +767,12 @@ Embeddable Compose component that wraps a Wayland compositor.
 ```kotlin
 @Composable
 fun CompositorSurface(
-    modifier: Modifier,
-    config: CompositorConfig,
-    onStateChange: (CompositorState) -> Unit,
-    onClientCountChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    config: CompositorConfig = CompositorConfig.default(),
+    surfaceState: CompositorSurfaceState = rememberCompositorSurfaceState(config),
+    onStateChange: (CompositorState) -> Unit = {},
+    onClientCountChange: (Int) -> Unit = {},
+    onKeyboardControllerChange: (CompositorKeyboardController?) -> Unit = {},
     inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
     enableViewportGestures: Boolean = false,
@@ -759,13 +782,95 @@ fun CompositorSurface(
 )
 ```
 
-`enableViewportGestures` opts into host-side two-finger pinch/pan. This only transforms the Android viewport; it does not change the Wayland output size, DPI, or client layout. It defaults off so guest multi-touch is preserved unless the host explicitly reserves two-finger gestures.
+`CompositorSurface` is the recommended Android integration. It manages the `SurfaceView`, `CompositorSession`, touch/key/pointer forwarding, IME request pipe, Android `InputConnection`, keyboard FAB, and optional host viewport gestures.
 
-Internally manages:
-- `SurfaceView` via `AndroidView` for the compositor surface
-- `CompositorSession` lifecycle tied to surface creation/destruction
-- Input event dispatching (touch, keyboard, pointer)
-- Optional keyboard toggle FAB overlay
+`enableViewportGestures` opts into Android-native two-finger pinch/pan. This only transforms the host viewport; it does not resize the Wayland output, change DPI, or relayout guest clients. The default is `false` so guest multi-touch gestures continue to reach Wayland apps. When enabled, Android reserves two-finger pinch/pan for host zoom.
+
+### CompositorSurfaceState
+
+Observable state and imperative controls for a `CompositorSurface`.
+
+```kotlin
+class CompositorSurfaceState(
+    val session: CompositorSession,
+    val config: CompositorConfig,
+) {
+    val viewport: StateFlow<ViewportTransform>
+    val compositorState: StateFlow<CompositorState>
+    val clientCount: StateFlow<Int>
+    val socketPath: StateFlow<String?>
+    val isKeyboardVisible: StateFlow<Boolean>
+
+    fun setViewportScaleBounds(minScale: Float, maxScale: Float)
+    fun resetZoom()
+    fun zoomBy(factor: Float, focalX: Float, focalY: Float)
+    fun setZoom(scale: Float, focalX: Float? = null, focalY: Float? = null)
+    fun zoomIn(factor: Float = 1.25f)
+    fun zoomOut(factor: Float = 1.25f)
+    fun panBy(dx: Float, dy: Float)
+    fun setPan(panX: Float, panY: Float)
+    fun setViewport(scale: Float, panX: Float, panY: Float)
+    fun mapViewToGuest(x: Float, y: Float): GuestPoint
+}
+
+@Composable
+fun rememberCompositorSurfaceState(
+    config: CompositorConfig = CompositorConfig.default(),
+): CompositorSurfaceState
+```
+
+Use these APIs for downstream toolbar buttons, zoom sliders, reset actions, overlay coordinate translation, and custom keyboard controls without enabling host gestures. All zoom/pan values are Android view-pixel transforms over the fixed Wayland output.
+
+### ViewportTransform
+
+```kotlin
+data class ViewportTransform(
+    val scale: Float = 1f,
+    val panX: Float = 0f,
+    val panY: Float = 0f,
+    val viewWidth: Int = 0,
+    val viewHeight: Int = 0,
+    val contentWidth: Int = 0,
+    val contentHeight: Int = 0,
+    val imeBottomInsetPx: Int = 0,
+    val minScale: Float = 1f,
+    val maxScale: Float = 4f,
+) {
+    fun mapViewToGuest(viewX: Float, viewY: Float): GuestPoint
+    fun clamped(): ViewportTransform
+    fun zoomBy(factor: Float, focalX: Float, focalY: Float): ViewportTransform
+    fun panBy(dx: Float, dy: Float): ViewportTransform
+    fun reset(): ViewportTransform
+}
+
+data class GuestPoint(val x: Float, val y: Float)
+```
+
+### CompositorKeyboardController
+
+Controller supplied by `CompositorSurface(onKeyboardControllerChange = ...)` while the Android view is attached.
+
+```kotlin
+class CompositorKeyboardController {
+    fun show(notifyNative: Boolean = true): Boolean
+    fun hide(notifyNative: Boolean = true)
+    fun toggle(keyboardInputEnabled: Boolean = true): Boolean
+    fun restartInput()
+}
+```
+
+`show()`, `hide()`, and `toggle()` notify the native compositor about Android IME visibility by default. `restartInput()` asks Android to rebuild the `InputConnection`, which is useful after changing `InputMode` or text-editor capability.
+
+### KeyboardPanBehavior
+
+```kotlin
+enum class KeyboardPanBehavior {
+    None,
+    PanWithinImeSafeArea,
+}
+```
+
+`PanWithinImeSafeArea` is the default and expands the host viewport's upward pan range while the Android IME overlaps the surface. `None` leaves viewport pan bounds unchanged when the IME appears.
 
 ### SetupOverlay
 
@@ -830,7 +935,9 @@ Floating action button to toggle the soft keyboard.
 ```kotlin
 @Composable
 fun KeyboardToggleFab(
+    isKeyboardVisible: Boolean,
+    onToggle: () -> Unit,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    visible: Boolean = true,
 )
 ```

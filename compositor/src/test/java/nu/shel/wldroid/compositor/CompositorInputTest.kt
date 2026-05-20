@@ -97,6 +97,16 @@ class CompositorInputTest {
     }
 
     @Test
+    fun `deleteSurroundingTextInCodePoints method exists with two Int parameters`() {
+        val method = findMethod("deleteSurroundingTextInCodePoints")
+        assertNotNull("deleteSurroundingTextInCodePoints should exist", method)
+        val paramTypes = method!!.parameterTypes
+        assertEquals(2, paramTypes.size)
+        assertEquals(Int::class.java, paramTypes[0])
+        assertEquals(Int::class.java, paramTypes[1])
+    }
+
+    @Test
     fun `notifyImeShown method exists with no parameters`() {
         val method = findMethod("notifyImeShown")
         assertNotNull("notifyImeShown should exist", method)
@@ -127,14 +137,15 @@ class CompositorInputTest {
     }
 
     @Test
-    fun `CompositorInput has exactly 11 public methods`() {
+    fun `CompositorInput has exactly 12 public methods`() {
         // touch, key, pointer motion, pointer button, pointer scroll,
-        // commitText, deleteSurroundingText, imeShown, imeHidden, getImePipeFd, hasActiveTextInput
+        // commitText, deleteSurroundingText, deleteSurroundingTextInCodePoints,
+        // imeShown, imeHidden, getImePipeFd, hasActiveTextInput
         val publicMethods = CompositorInput::class.java.declaredMethods
             .filter { java.lang.reflect.Modifier.isPublic(it.modifiers) }
         assertEquals(
-            "Expected 11 public methods on CompositorInput",
-            11,
+            "Expected 12 public methods on CompositorInput",
+            12,
             publicMethods.size,
         )
     }

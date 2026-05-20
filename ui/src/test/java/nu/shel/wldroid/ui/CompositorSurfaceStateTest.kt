@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorState
 import org.junit.Test
+import java.lang.reflect.Modifier
 
 class CompositorSurfaceStateTest {
 
@@ -47,6 +48,40 @@ class CompositorSurfaceStateTest {
         assertThat(state.config.cacheDir).isEqualTo("/tmp/test")
         assertThat(state.config.xwaylandEnabled).isFalse()
         assertThat(state.config.gpuMode).isEqualTo("VIRGL_GLES")
+    }
+
+    @Test
+    fun `CompositorSurfaceState exposes viewport control APIs`() {
+        val publicMethodNames = CompositorSurfaceState::class.java.declaredMethods
+            .filter { Modifier.isPublic(it.modifiers) }
+            .map { it.name }
+
+        assertThat(publicMethodNames).containsAtLeast(
+            "setViewportScaleBounds",
+            "resetZoom",
+            "zoomBy",
+            "setZoom",
+            "zoomIn",
+            "zoomOut",
+            "panBy",
+            "setPan",
+            "setViewport",
+            "mapViewToGuest",
+        )
+    }
+
+    @Test
+    fun `CompositorKeyboardController exposes keyboard control APIs`() {
+        val publicMethodNames = CompositorKeyboardController::class.java.declaredMethods
+            .filter { Modifier.isPublic(it.modifiers) }
+            .map { it.name }
+
+        assertThat(publicMethodNames).containsAtLeast(
+            "show",
+            "hide",
+            "toggle",
+            "restartInput",
+        )
     }
 
     /**

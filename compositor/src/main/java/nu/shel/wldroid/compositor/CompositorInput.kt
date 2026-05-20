@@ -32,6 +32,10 @@ class CompositorInput(private val server: CompositorServer) {
         server.nativeDeleteSurroundingText(beforeLength, afterLength)
     }
 
+    fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int) {
+        server.nativeDeleteSurroundingTextInCodePoints(beforeLength, afterLength)
+    }
+
     fun notifyImeShown() {
         server.nativeImeShown()
     }

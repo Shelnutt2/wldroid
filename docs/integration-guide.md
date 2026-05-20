@@ -188,23 +188,31 @@ class MyActivity : ComponentActivity() {
 Use the pre-built `CompositorSurface` Compose component:
 
 ```kotlin
+import nu.shel.wldroid.ui.CompositorKeyboardController
 import nu.shel.wldroid.ui.CompositorSurface
+import nu.shel.wldroid.ui.rememberCompositorSurfaceState
 import nu.shel.wldroid.compositor.*
 
 @Composable
 fun WaylandScreen() {
     var compositorState by remember { mutableStateOf(CompositorState.IDLE) }
+    var keyboardController by remember { mutableStateOf<CompositorKeyboardController?>(null) }
+    val config = CompositorConfig(
+        cacheDir = LocalContext.current.cacheDir.absolutePath,
+        gpuMode = "AUTO",
+        xwaylandEnabled = true,
+    )
+    val surfaceState = rememberCompositorSurfaceState(config)
 
     CompositorSurface(
         modifier = Modifier.fillMaxSize(),
-        config = CompositorConfig(
-            cacheDir = LocalContext.current.cacheDir.absolutePath,
-            gpuMode = "AUTO",
-            xwaylandEnabled = true,
-        ),
+        config = config,
+        surfaceState = surfaceState,
         onStateChange = { compositorState = it },
         onClientCountChange = { /* update UI */ },
+        onKeyboardControllerChange = { keyboardController = it },
         // Optional: reserve two-finger Android host pinch/pan for viewport zoom.
+        // Defaults off so two-finger guest gestures still work out of the box.
         // This does not change guest Wayland output size or DPI.
         enableViewportGestures = true,
     )
@@ -224,6 +232,32 @@ When XWayland is disabled, the compositor skips all X11 support initialization.
 The `CompositorSession.xwaylandDisplay` StateFlow will emit `null`. Only pure
 Wayland clients can connect. This reduces startup overhead and avoids the need
 for an XWayland binary in the proot environment.
+
+### Android viewport zoom and keyboard behavior
+
+`CompositorSurface` defaults are designed to work without app-side glue:
+
+- Software keyboard requests from focused Wayland text inputs are handled automatically through the native IME pipe and Android `InputConnection`.
+- The built-in keyboard FAB calls `CompositorKeyboardController.toggle()` and respects `InputMode`; disabling keyboard input hides/restarts the IME.
+- `KeyboardPanBehavior.PanWithinImeSafeArea` is the default, allowing the host viewport to pan content above the Android keyboard. Use `KeyboardPanBehavior.None` if your surrounding UI handles IME overlap itself.
+- Host viewport gestures default to disabled. Set `enableViewportGestures = true` only if Android should reserve two-finger pinch/pan for viewport zoom instead of forwarding those gestures to the guest.
+- Viewport zoom/pan never changes the Wayland output size, DPI, or client layout.
+
+For custom controls, keep a `surfaceState` and call:
+
+```kotlin
+surfaceState.zoomIn()
+surfaceState.zoomOut()
+surfaceState.setZoom(2f)
+surfaceState.panBy(dx = -24f, dy = 0f)
+surfaceState.resetZoom()
+
+val guestPoint = surfaceState.mapViewToGuest(viewX, viewY)
+keyboardController?.show()
+keyboardController?.hide()
+```
+
+If an Activity hosts WLDroid fullscreen, prefer `android:windowSoftInputMode="adjustNothing"` so Android does not resize the Activity while `CompositorSurface` manages viewport panning for IME overlap.
 
 ### Level 3: Full Stack (Compositor + Proot + GPU)
 
@@ -607,26 +641,42 @@ session.state.collect { state ->
 
 ### Input Forwarding
 
-If you manage your own SurfaceView instead of using `CompositorSurface`:
+Prefer `CompositorSurface` unless you need a custom Android view. If you manage your own `SurfaceView`, you are responsible for forwarding input, mapping host viewport coordinates, and handling IME requests.
 
 ```kotlin
 val input = session.input
+var viewport = ViewportTransform()
 
-// Forward touch events
+// Forward touch events. If you implement host zoom/pan, map view pixels back
+// to the fixed Wayland output coordinate space before sending to native.
 surfaceView.setOnTouchListener { _, event ->
+    val guest = viewport.mapViewToGuest(event.x, event.y)
     input.sendTouchEvent(
         id = event.getPointerId(0),
         action = event.action,
-        x = event.x,
-        y = event.y,
+        x = guest.x,
+        y = guest.y,
         timestampMs = event.eventTime,
     )
     true
 }
 
-// Forward keyboard events
+// Forward keyboard events.
 override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
     input.sendKeyEvent(keyCode, KeyEvent.ACTION_DOWN, event.eventTime)
     return true
 }
+
+// Implement InputConnection deletion using the correct Android API.
+override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+    input.deleteSurroundingText(beforeLength, afterLength) // UTF-16 counts
+    return true
+}
+
+override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+    input.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
+    return true
+}
 ```
+
+Custom views should also read `input.getImePipeFd()` on a background/coroutine thread. The pipe emits `S` when the focused Wayland text input requests Android IME show and `H` when it requests hide. Notify native with `input.notifyImeShown()` and `input.notifyImeHidden()` when your view shows or hides the Android keyboard. Managed `CompositorSurface` already implements this, including nonblocking pipe polling, active text-input focus checks, and bounded delete fallback handling.
