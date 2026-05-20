@@ -317,6 +317,7 @@ fun DesktopScreen(
             surfaceState = surfaceState,
             inputMode = InputMode.TOUCH_AND_KEYBOARD,
             showKeyboardFab = true,
+            enableViewportGestures = true,
         )
 
         // Control panel

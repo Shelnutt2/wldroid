@@ -147,6 +147,7 @@ fun CompositorTestScreen(
             onClientCountChange = { viewModel.onClientCountChange(it) },
             inputMode = inputMode,
             showKeyboardFab = true,
+            enableViewportGestures = true,
         )
     }
 }

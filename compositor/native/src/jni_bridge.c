@@ -19,6 +19,7 @@
  *   nativeSendPointerButton(int, int, long)
  *   nativeSendPointerScroll(float, float, long)
  *   nativeCommitText(String)
+ *   nativeDeleteSurroundingText(int, int)
  *   nativeImeShown()
  *   nativeImeHidden()
  *   nativeGetImePipeFd() → int
@@ -32,6 +33,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <android/log.h>
@@ -373,6 +375,20 @@ static void native_commit_text(JNIEnv *env, jobject thiz, jstring text) {
     pthread_mutex_unlock(&g_server_mutex);
 }
 
+static void native_delete_surrounding_text(JNIEnv *env, jobject thiz,
+                                           jint before_length,
+                                           jint after_length) {
+    (void)env; (void)thiz;
+    if (before_length < 0) before_length = 0;
+    if (after_length < 0) after_length = 0;
+    pthread_mutex_lock(&g_server_mutex);
+    if (g_server) {
+        text_input_handle_delete_surrounding_text(
+            g_server, (uint32_t)before_length, (uint32_t)after_length);
+    }
+    pthread_mutex_unlock(&g_server_mutex);
+}
+
 static void native_ime_shown(JNIEnv *env, jobject thiz) {
     (void)env; (void)thiz;
     pthread_mutex_lock(&g_server_mutex);
@@ -500,6 +516,8 @@ static const JNINativeMethod g_methods[] = {
     /* IME */
     {"nativeCommitText",       "(Ljava/lang/String;)V",
                                 (void *)native_commit_text},
+    {"nativeDeleteSurroundingText", "(II)V",
+                                (void *)native_delete_surrounding_text},
     {"nativeImeShown",         "()V",
                                 (void *)native_ime_shown},
     {"nativeImeHidden",        "()V",

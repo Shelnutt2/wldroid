@@ -9,6 +9,7 @@
 #define TEXT_INPUT_HANDLER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct compositor_server;
 
@@ -32,6 +33,14 @@ void text_input_handler_destroy(struct compositor_server *server);
  */
 void text_input_handle_commit_text(struct compositor_server *server,
                                     const char *text);
+
+/**
+ * Handle delete-surrounding-text from Android IME.
+ * Thread-safe (can be called from JNI thread).
+ */
+void text_input_handle_delete_surrounding_text(struct compositor_server *server,
+                                                uint32_t before_length,
+                                                uint32_t after_length);
 
 /** Whether a zwp_text_input_v3 resource is currently enabled. */
 bool text_input_has_active_text_input(void);

@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,8 @@ import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorInput
 import nu.shel.wldroid.compositor.CompositorState
 import java.io.FileInputStream
+
+internal const val DEFAULT_ENABLE_VIEWPORT_GESTURES = false
 
 /**
  * Flagship composable that embeds a Wayland compositor surface.
@@ -57,7 +60,7 @@ import java.io.FileInputStream
  * @param onClientCountChange Called when the number of connected Wayland clients changes.
  * @param inputMode Controls which input events are forwarded to the compositor.
  * @param showKeyboardFab Whether to show a floating action button for toggling the keyboard.
- * @param enableViewportGestures Whether two-finger host pinch/pan gestures are enabled.
+ * @param enableViewportGestures Whether two-finger host pinch/pan gestures are enabled. Defaults off so guest multi-touch is forwarded.
  * @param minZoom Minimum host viewport zoom; does not affect Wayland output size.
  * @param maxZoom Maximum host viewport zoom; does not affect Wayland output size.
  * @param keyboardPanBehavior How the host viewport accounts for Android IME overlap.
@@ -71,7 +74,7 @@ fun CompositorSurface(
     onClientCountChange: (Int) -> Unit = {},
     inputMode: InputMode = InputMode.TOUCH_AND_KEYBOARD,
     showKeyboardFab: Boolean = true,
-    enableViewportGestures: Boolean = true,
+    enableViewportGestures: Boolean = DEFAULT_ENABLE_VIEWPORT_GESTURES,
     minZoom: Float = 1f,
     maxZoom: Float = 4f,
     keyboardPanBehavior: KeyboardPanBehavior = KeyboardPanBehavior.PanWithinImeSafeArea,
@@ -80,6 +83,7 @@ fun CompositorSurface(
     val clientCount by surfaceState.clientCount.collectAsState()
     val isKeyboardVisible by surfaceState.isKeyboardVisible.collectAsState()
     var surfaceViewRef by remember { mutableStateOf<CompositorSurfaceView?>(null) }
+    val currentInputMode = rememberUpdatedState(inputMode)
 
     val density = LocalDensity.current
     val imeBottomInset = WindowInsets.ime.getBottom(density)
@@ -96,6 +100,7 @@ fun CompositorSurface(
                 0
             },
         )
+        surfaceState.setKeyboardVisible(imeBottomInset > 0)
     }
 
     // Notify callers of state changes.
@@ -110,7 +115,10 @@ fun CompositorSurface(
     LaunchedEffect(compositorState) {
         if (compositorState == CompositorState.RUNNING) {
             launch(Dispatchers.IO) {
-                readImePipe(surfaceState) { surfaceViewRef }
+                readImePipe(
+                    surfaceState = surfaceState,
+                    keyboardInputEnabled = { currentInputMode.value.hasKeyboardInput },
+                ) { surfaceViewRef }
             }
         }
     }
@@ -297,17 +305,7 @@ private class CompositorSurfaceView(
                 beforeLength: Int,
                 afterLength: Int,
             ): Boolean {
-                val now = System.currentTimeMillis()
-                // Send backspace key events for characters before cursor
-                repeat(beforeLength) {
-                    input.sendKeyEvent(KeyEvent.KEYCODE_DEL, 0, now)
-                    input.sendKeyEvent(KeyEvent.KEYCODE_DEL, 1, now)
-                }
-                // Send forward-delete for characters after cursor
-                repeat(afterLength) {
-                    input.sendKeyEvent(KeyEvent.KEYCODE_FORWARD_DEL, 0, now)
-                    input.sendKeyEvent(KeyEvent.KEYCODE_FORWARD_DEL, 1, now)
-                }
+                input.deleteSurroundingText(beforeLength, afterLength)
                 return true
             }
 
@@ -639,6 +637,7 @@ private class CompositorSurfaceView(
  */
 private suspend fun readImePipe(
     surfaceState: CompositorSurfaceState,
+    keyboardInputEnabled: () -> Boolean,
     viewProvider: () -> View?,
 ) {
     val fd = surfaceState.session.input.getImePipeFd()
@@ -654,7 +653,9 @@ private suspend fun readImePipe(
                 if (bytesRead <= 0) break
                 when (buffer[0].toInt().toChar()) {
                     'S' -> withContext(Dispatchers.Main) {
-                        showKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                        if (keyboardInputEnabled()) {
+                            showKeyboard(viewProvider(), surfaceState, notifyNative = false)
+                        }
                     }
                     'H' -> withContext(Dispatchers.Main) {
                         hideKeyboard(viewProvider(), surfaceState, notifyNative = false)
@@ -695,7 +696,9 @@ private fun showKeyboard(
     val targetView = view ?: return
     targetView.requestFocus()
     val imm = targetView.context.getSystemService(InputMethodManager::class.java)
-    imm?.showSoftInput(targetView, InputMethodManager.SHOW_IMPLICIT)
+    val accepted = imm?.showSoftInput(targetView, InputMethodManager.SHOW_IMPLICIT) == true
+    if (!accepted) return
+
     surfaceState.setKeyboardVisible(true)
     if (notifyNative) {
         surfaceState.session.input.notifyImeShown()

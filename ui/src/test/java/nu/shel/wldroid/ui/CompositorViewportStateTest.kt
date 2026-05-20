@@ -6,6 +6,11 @@ import org.junit.Test
 class CompositorViewportStateTest {
 
     @Test
+    fun `viewport gestures default to disabled`() {
+        assertThat(DEFAULT_ENABLE_VIEWPORT_GESTURES).isFalse()
+    }
+
+    @Test
     fun `defaults to identity transform`() {
         val viewport = ViewportTransform()
 

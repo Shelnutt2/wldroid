@@ -204,6 +204,9 @@ fun WaylandScreen() {
         ),
         onStateChange = { compositorState = it },
         onClientCountChange = { /* update UI */ },
+        // Optional: reserve two-finger Android host pinch/pan for viewport zoom.
+        // This does not change guest Wayland output size or DPI.
+        enableViewportGestures = true,
     )
 }
 ```

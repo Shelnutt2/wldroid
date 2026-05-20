@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import nu.shel.wldroid.compositor.CompositorConfig
 import nu.shel.wldroid.compositor.CompositorSession
 import nu.shel.wldroid.compositor.CompositorState
@@ -82,7 +83,7 @@ class CompositorSurfaceState(
     }
 
     private fun updateViewport(transform: (ViewportTransform) -> ViewportTransform) {
-        _viewport.value = transform(_viewport.value)
+        _viewport.update(transform)
     }
 }
 

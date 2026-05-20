@@ -96,6 +96,8 @@ fun MyScreen() {
         onClientCountChange = { count ->
             Log.d("WLDroid", "$count Wayland clients connected")
         },
+        // Optional host-side pinch/pan. Guest output size/DPI remains fixed.
+        enableViewportGestures = true,
     )
 }
 ```
