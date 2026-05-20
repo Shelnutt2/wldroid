@@ -74,6 +74,7 @@ import nu.shel.wldroid.shims.ShimExtractor
 import nu.shel.wldroid.ui.CompositorSurface
 import nu.shel.wldroid.ui.CompositorSurfaceState
 import nu.shel.wldroid.ui.InputMode
+import nu.shel.wldroid.ui.KeyboardAutoShowBehavior
 import nu.shel.wldroid.ui.SetupScreen
 import nu.shel.wldroid.ui.SetupState
 import nu.shel.wldroid.virgl.GpuMode
@@ -244,7 +245,11 @@ fun DesktopScreen(
     var selectedPreset by remember { mutableStateOf<DesktopAppPreset?>(null) }
     var isCustom by rememberSaveable { mutableStateOf(false) }
     var customCommand by rememberSaveable { mutableStateOf("") }
+    var keyboardAutoShowBehavior by rememberSaveable {
+        mutableStateOf(KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap)
+    }
     var envDropdownExpanded by remember { mutableStateOf(false) }
+    var keyboardDropdownExpanded by remember { mutableStateOf(false) }
 
     // Auto-trigger environment creation when no environments exist.
     LaunchedEffect(environments, setupState) {
@@ -308,6 +313,7 @@ fun DesktopScreen(
             surfaceState = surfaceState,
             inputMode = InputMode.TOUCH_AND_KEYBOARD,
             showKeyboardFab = true,
+            keyboardAutoShowBehavior = keyboardAutoShowBehavior,
             enableViewportGestures = true,
         )
 
@@ -323,6 +329,7 @@ fun DesktopScreen(
             ExposedDropdownMenuBox(
                 expanded = envDropdownExpanded,
                 onExpandedChange = { envDropdownExpanded = it },
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
                     value = selectedEnv?.name ?: "No environments",
@@ -337,6 +344,7 @@ fun DesktopScreen(
                 ExposedDropdownMenu(
                     expanded = envDropdownExpanded,
                     onDismissRequest = { envDropdownExpanded = false },
+                    modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true),
                 ) {
                     environments.forEach { env ->
                         DropdownMenuItem(
@@ -344,6 +352,52 @@ fun DesktopScreen(
                             onClick = {
                                 selectedEnv = env
                                 envDropdownExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = keyboardDropdownExpanded,
+                onExpandedChange = { keyboardDropdownExpanded = it },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = keyboardAutoShowBehavior.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Keyboard auto-open") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = keyboardDropdownExpanded)
+                    },
+                    supportingText = { Text(keyboardAutoShowBehavior.description()) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                )
+                ExposedDropdownMenu(
+                    expanded = keyboardDropdownExpanded,
+                    onDismissRequest = { keyboardDropdownExpanded = false },
+                    modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true),
+                ) {
+                    KeyboardAutoShowBehavior.entries.forEach { behavior ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(behavior.displayName())
+                                    Text(
+                                        text = behavior.description(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                keyboardAutoShowBehavior = behavior
+                                keyboardDropdownExpanded = false
                             },
                         )
                     }
@@ -490,6 +544,16 @@ fun DesktopScreen(
             }
         }
     }
+}
+
+private fun KeyboardAutoShowBehavior.displayName(): String = when (this) {
+    KeyboardAutoShowBehavior.TextInputRequestsOnly -> "Text inputs only"
+    KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap -> "Text inputs + tap fallback"
+}
+
+private fun KeyboardAutoShowBehavior.description(): String = when (this) {
+    KeyboardAutoShowBehavior.TextInputRequestsOnly -> "Open only when apps request the IME"
+    KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap -> "Also open after tapping desktop apps like VS Code"
 }
 
 /** User-friendly display name for a [DesktopLauncherState]. */

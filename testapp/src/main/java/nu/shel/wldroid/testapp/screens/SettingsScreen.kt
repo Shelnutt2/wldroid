@@ -172,6 +172,7 @@ fun SettingsScreen(
                 ExposedDropdownMenuBox(
                     expanded = gpuExpanded,
                     onExpandedChange = { gpuExpanded = it },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedTextField(
                         value = gpuModeOverride?.displayName ?: "Auto-detect",
@@ -186,6 +187,7 @@ fun SettingsScreen(
                     ExposedDropdownMenu(
                         expanded = gpuExpanded,
                         onDismissRequest = { gpuExpanded = false },
+                        modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true),
                     ) {
                         DropdownMenuItem(
                             text = { Text("Auto-detect") },
@@ -219,6 +221,7 @@ fun SettingsScreen(
                 ExposedDropdownMenuBox(
                     expanded = distroExpanded,
                     onExpandedChange = { distroExpanded = it },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedTextField(
                         value = "${defaultDistro.displayName} (${defaultDistro.version})",
@@ -233,6 +236,7 @@ fun SettingsScreen(
                     ExposedDropdownMenu(
                         expanded = distroExpanded,
                         onDismissRequest = { distroExpanded = false },
+                        modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true),
                     ) {
                         DistroTemplate.entries.forEach { distro ->
                             DropdownMenuItem(

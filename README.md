@@ -115,7 +115,7 @@ fun MyScreen() {
 }
 ```
 
-`CompositorSurface` works out of the box with software-keyboard handling and an optional keyboard FAB. Host viewport pinch-to-zoom/pan is Android-native and never resizes the Wayland output or changes guest DPI. It is disabled by default (`enableViewportGestures = false`) so two-finger guest gestures continue to reach apps; enable it only when you want Android to reserve two-finger pinch/pan for viewport zoom.
+`CompositorSurface` works out of the box with software-keyboard handling and an optional keyboard FAB. By default, it opens the Android IME for Wayland text-input requests and also after a tap/click focus fallback for desktop apps such as VS Code that accept synthetic key input without advertising text-input focus. Host viewport pinch-to-zoom/pan is Android-native and never resizes the Wayland output or changes guest DPI. It is disabled by default (`enableViewportGestures = false`) so two-finger guest gestures continue to reach apps; enable it only when you want Android to reserve two-finger pinch/pan for viewport zoom.
 
 Use `surfaceState.viewport` to observe zoom/pan, `surfaceState.zoomIn()` / `zoomOut()` / `setZoom()` / `panBy()` / `resetZoom()` for toolbar controls, and `surfaceState.mapViewToGuest()` when translating custom overlay coordinates. Use `onKeyboardControllerChange` to get a `CompositorKeyboardController` for `show()`, `hide()`, `toggle()`, and `restartInput()` calls.
 

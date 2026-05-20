@@ -805,12 +805,15 @@ fun CompositorSurface(
     minZoom: Float = 1f,
     maxZoom: Float = 4f,
     keyboardPanBehavior: KeyboardPanBehavior = KeyboardPanBehavior.PanWithinImeSafeArea,
+    keyboardAutoShowBehavior: KeyboardAutoShowBehavior = KeyboardAutoShowBehavior.TextInputRequestsAndFocusTap,
 )
 ```
 
 `CompositorSurface` is the recommended Android integration. It manages the `SurfaceView`, `CompositorSession`, touch/key/pointer forwarding, IME request pipe, Android `InputConnection`, keyboard FAB, and optional host viewport gestures.
 
 `enableViewportGestures` opts into Android-native two-finger pinch/pan. This only transforms the host viewport; it does not resize the Wayland output, change DPI, or relayout guest clients. The default is `false` so guest multi-touch gestures continue to reach Wayland apps. When enabled, Android reserves two-finger pinch/pan for host zoom.
+
+`keyboardAutoShowBehavior` defaults to `TextInputRequestsAndFocusTap`: focused Wayland text-input requests open the Android IME, and a tap/click on the focused compositor surface also opens it as a practical fallback for XWayland/Electron apps that accept synthetic key input but do not advertise text-input focus. Use `TextInputRequestsOnly` for protocol-only auto-open behavior.
 
 ### CompositorSurfaceState
 
@@ -886,6 +889,17 @@ class CompositorKeyboardController {
 ```
 
 `show()`, `hide()`, and `toggle()` notify the native compositor about Android IME visibility by default. `restartInput()` asks Android to rebuild the `InputConnection`, which is useful after changing `InputMode` or text-editor capability.
+
+### KeyboardAutoShowBehavior
+
+```kotlin
+enum class KeyboardAutoShowBehavior {
+    TextInputRequestsOnly,
+    TextInputRequestsAndFocusTap,
+}
+```
+
+`TextInputRequestsAndFocusTap` is the default. It preserves text-input-v3 driven IME requests and adds a tap/click fallback for desktop apps such as VS Code. `TextInputRequestsOnly` disables the fallback and opens the IME only when clients request it through text-input.
 
 ### KeyboardPanBehavior
 
