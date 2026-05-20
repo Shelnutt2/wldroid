@@ -185,7 +185,7 @@ class EnvironmentRegistry(
     val environments: StateFlow<List<RootfsEnvironment>>
 
     // CRUD operations
-    suspend fun create(config: EnvironmentConfig): RootfsEnvironment
+    fun create(config: EnvironmentConfig): StateFlow<EnvironmentProgress>
     suspend fun delete(id: String)
     suspend fun duplicate(id: String, newName: String): RootfsEnvironment
 
@@ -194,7 +194,7 @@ class EnvironmentRegistry(
     suspend fun exportRootfs(id: String, outputPath: String)
 
     // State observation
-    fun getState(id: String): StateFlow<EnvironmentState>
+    fun getState(id: String): StateFlow<EnvironmentProgress>
 
     // Available distros
     fun availableDistros(): List<DistroTemplate>
@@ -222,6 +222,18 @@ Environment lifecycle states.
 enum class EnvironmentState {
     IDLE, DOWNLOADING, EXTRACTING, INSTALLING, RUNNING, STOPPING, STOPPED, ERROR
 }
+```
+
+### EnvironmentProgress
+
+Progress snapshot emitted while an environment is being created or changed.
+
+```kotlin
+data class EnvironmentProgress(
+    val state: EnvironmentState,
+    val progress: Float = -1f,
+    val message: String = "",
+)
 ```
 
 ### RootfsManager
@@ -617,15 +629,26 @@ Prepares the XWayland wrapper script inside a proot environment.
 ```kotlin
 class XWaylandManager(
     prootConfig: ProotConfig,
-    cacheDir: File,
+    cacheDir: String,
 ) {
-    // Extracts the XWayland wrapper script into tempDir and returns
-    // the resolved path. Must be called before CompositorConfig is
-    // constructed so that xwaylandBinaryPath points to a real file.
-    suspend fun prepare(
+    val wrapperScriptPath: String
+
+    fun extractWrapperScript(environment: RootfsEnvironment): String
+
+    // Extracts the XWayland wrapper script and ensures /tmp/.X11-unix exists.
+    // Must be called before CompositorConfig is constructed so that
+    // xwaylandBinaryPath points to a real file.
+    fun prepare(
         environment: RootfsEnvironment,
         tempDir: String,
     ): XWaylandReadyResult
+
+    fun ensureTmpDirReady(tempDir: String)
+
+    suspend fun isXWaylandInstalled(
+        packageInstaller: PackageInstaller,
+        environment: RootfsEnvironment,
+    ): Boolean
 }
 ```
 
@@ -651,12 +674,15 @@ class CompositorConfigFactory(
 ) {
     // Calls XWaylandManager.prepare() and builds a CompositorConfig
     // with the resolved xwaylandBinaryPath in one step.
-    suspend fun createWithXWayland(
+    fun createWithXWayland(
         environment: RootfsEnvironment,
         cacheDir: String,
         tempDir: String,
+        xwaylandConfig: XWaylandConfig = XWaylandConfig(),
         xkbBasePath: String = "",
         gpuMode: String = "AUTO",
+        testClientEnabled: Boolean = false,
+        ahbRegistrySocketPath: String = "",
     ): CompositorConfig
 }
 ```

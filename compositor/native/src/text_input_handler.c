@@ -252,6 +252,11 @@ struct text_input {
     int32_t surrounding_cursor;
     int32_t surrounding_anchor;
 
+    char *pending_surrounding_text;
+    int32_t pending_surrounding_cursor;
+    int32_t pending_surrounding_anchor;
+    bool pending_surrounding_text_set;
+
     bool pending_cursor_rectangle_set;
     int32_t pending_cursor_x;
     int32_t pending_cursor_y;
@@ -347,8 +352,59 @@ static bool text_input_matches_surface_client(struct text_input *ti,
            wl_resource_get_client(surface->resource);
 }
 
+static void clear_committed_surrounding_text_state(struct text_input *ti) {
+    if (!ti) return;
+
+    free(ti->surrounding_text);
+    ti->surrounding_text = NULL;
+    ti->surrounding_cursor = 0;
+    ti->surrounding_anchor = 0;
+}
+
+static void clear_surrounding_text_state(struct text_input *ti) {
+    if (!ti) return;
+
+    clear_committed_surrounding_text_state(ti);
+
+    free(ti->pending_surrounding_text);
+    ti->pending_surrounding_text = NULL;
+    ti->pending_surrounding_cursor = 0;
+    ti->pending_surrounding_anchor = 0;
+    ti->pending_surrounding_text_set = false;
+}
+
+static void clear_pending_text_input_state(struct text_input *ti) {
+    if (!ti) return;
+
+    ti->pending_enabled = false;
+    ti->pending_cursor_rectangle_set = false;
+    ti->pending_cursor_x = 0;
+    ti->pending_cursor_y = 0;
+    ti->pending_cursor_width = 0;
+    ti->pending_cursor_height = 0;
+}
+
+static void clear_committed_text_input_state(struct text_input *ti) {
+    if (!ti) return;
+
+    ti->current_enabled = false;
+    ti->cursor_rectangle_set = false;
+    ti->cursor_x = 0;
+    ti->cursor_y = 0;
+    ti->cursor_width = 0;
+    ti->cursor_height = 0;
+}
+
+static void reset_text_input_request_state(struct text_input *ti) {
+    clear_pending_text_input_state(ti);
+    clear_committed_text_input_state(ti);
+    clear_surrounding_text_state(ti);
+}
+
 static void maybe_send_leave(struct text_input *ti, bool send_leave) {
     if (!ti || !ti->entered) return;
+
+    bool was_enabled = ti->current_enabled;
     if (send_leave && ti->entered_surface && ti->entered_surface->resource) {
         zwp_text_input_v3_send_leave(ti->resource,
                                      ti->entered_surface->resource);
@@ -357,10 +413,11 @@ static void maybe_send_leave(struct text_input *ti, bool send_leave) {
     ti->entered_surface = NULL;
     if (active_text_input == ti) {
         set_active_text_input(NULL);
-        if (ti->current_enabled && g_text_input_server) {
+        if (was_enabled && g_text_input_server) {
             request_ime_hide(g_text_input_server);
         }
     }
+    reset_text_input_request_state(ti);
 }
 
 static void clear_text_input_focus(struct compositor_server *server,
@@ -409,16 +466,10 @@ void text_input_handle_keyboard_enter(struct compositor_server *server,
     struct text_input *ti;
     wl_list_for_each(ti, &text_inputs, link) {
         if (!text_input_matches_surface_client(ti, surface)) continue;
+        reset_text_input_request_state(ti);
         ti->entered = true;
         ti->entered_surface = surface;
         zwp_text_input_v3_send_enter(ti->resource, surface->resource);
-        if (ti->current_enabled) {
-            bool had_active = active_text_input != NULL;
-            set_active_text_input(ti);
-            if (!had_active) {
-                request_ime_show(server);
-            }
-        }
     }
 }
 
@@ -435,6 +486,12 @@ static void ti_enable(struct wl_client *client,
     (void)client;
     struct text_input *ti = wl_resource_get_user_data(resource);
     if (!ti) return;
+    if (!ti->entered) {
+        LOGD("text-input-v3: ignoring enable while not focused");
+        return;
+    }
+
+    clear_committed_surrounding_text_state(ti);
     ti->pending_enabled = true;
     LOGD("text-input-v3: enable pending");
 }
@@ -444,6 +501,12 @@ static void ti_disable(struct wl_client *client,
     (void)client;
     struct text_input *ti = wl_resource_get_user_data(resource);
     if (!ti) return;
+    if (!ti->entered) {
+        LOGD("text-input-v3: ignoring disable while not focused");
+        return;
+    }
+
+    clear_committed_surrounding_text_state(ti);
     ti->pending_enabled = false;
     LOGD("text-input-v3: disable pending");
 }
@@ -456,15 +519,20 @@ static void ti_set_surrounding_text(struct wl_client *client,
     (void)client;
     struct text_input *ti = wl_resource_get_user_data(resource);
     if (!ti) return;
+    if (!ti->entered) {
+        LOGD("text-input-v3: ignoring surrounding text while not focused");
+        return;
+    }
 
     char *copy = text ? strdup(text) : strdup("");
     if (!copy) return;
 
-    free(ti->surrounding_text);
-    ti->surrounding_text = copy;
-    size_t len = strlen(ti->surrounding_text);
-    ti->surrounding_cursor = cursor < 0 ? 0 : (cursor > (int32_t)len ? (int32_t)len : cursor);
-    ti->surrounding_anchor = anchor < 0 ? 0 : (anchor > (int32_t)len ? (int32_t)len : anchor);
+    free(ti->pending_surrounding_text);
+    ti->pending_surrounding_text = copy;
+    size_t len = strlen(ti->pending_surrounding_text);
+    ti->pending_surrounding_cursor = cursor < 0 ? 0 : (cursor > (int32_t)len ? (int32_t)len : cursor);
+    ti->pending_surrounding_anchor = anchor < 0 ? 0 : (anchor > (int32_t)len ? (int32_t)len : anchor);
+    ti->pending_surrounding_text_set = true;
 }
 
 static void ti_set_text_change_cause(struct wl_client *client,
@@ -487,6 +555,10 @@ static void ti_set_cursor_rectangle(struct wl_client *client,
     (void)client;
     struct text_input *ti = wl_resource_get_user_data(resource);
     if (!ti) return;
+    if (!ti->entered) {
+        LOGD("text-input-v3: ignoring cursor rectangle while not focused");
+        return;
+    }
 
     ti->pending_cursor_rectangle_set = true;
     ti->pending_cursor_x = x;
@@ -500,27 +572,47 @@ static void ti_commit(struct wl_client *client,
     (void)client;
     struct text_input *ti = wl_resource_get_user_data(resource);
     if (!ti) return;
+    if (!ti->entered) {
+        clear_pending_text_input_state(ti);
+        clear_surrounding_text_state(ti);
+        LOGD("text-input-v3: ignoring commit while not focused");
+        return;
+    }
 
     bool was_enabled = ti->current_enabled;
     bool was_active = active_text_input == ti;
+    ti->serial++;
     ti->current_enabled = ti->pending_enabled;
 
-    if (ti->current_enabled && ti->entered) {
+    if (ti->pending_surrounding_text_set) {
+        free(ti->surrounding_text);
+        ti->surrounding_text = ti->pending_surrounding_text;
+        ti->surrounding_cursor = ti->pending_surrounding_cursor;
+        ti->surrounding_anchor = ti->pending_surrounding_anchor;
+        ti->pending_surrounding_text = NULL;
+        ti->pending_surrounding_cursor = 0;
+        ti->pending_surrounding_anchor = 0;
+        ti->pending_surrounding_text_set = false;
+    }
+
+    if (ti->current_enabled) {
         set_active_text_input(ti);
         if (!was_enabled && g_text_input_server) {
             request_ime_show(g_text_input_server);
         }
-    } else if (was_active) {
-        set_active_text_input(NULL);
-        if (was_enabled && g_text_input_server) {
-            request_ime_hide(g_text_input_server);
+    } else {
+        if (was_active) {
+            set_active_text_input(NULL);
+            if (was_enabled && g_text_input_server) {
+                request_ime_hide(g_text_input_server);
+            }
         }
+        clear_surrounding_text_state(ti);
     }
 
     if (was_enabled != ti->current_enabled) {
-        LOGD("text-input-v3: %s committed%s",
-             ti->current_enabled ? "enabled" : "disabled",
-             ti->entered ? "" : " while not focused");
+        LOGD("text-input-v3: %s committed serial=%u",
+             ti->current_enabled ? "enabled" : "disabled", ti->serial);
     }
 
     if (ti->pending_cursor_rectangle_set) {
@@ -551,7 +643,7 @@ static void ti_resource_destroy(struct wl_resource *resource) {
         ti->entered_surface = NULL;
     }
     wl_list_remove(&ti->link);
-    free(ti->surrounding_text);
+    clear_surrounding_text_state(ti);
     free(ti);
 }
 
@@ -738,7 +830,6 @@ static void dispatch_commit_text(struct compositor_server *server,
     if (active_text_input && active_text_input->current_enabled) {
         /* Send via text-input-v3 protocol on the compositor event loop. */
         zwp_text_input_v3_send_commit_string(active_text_input->resource, text);
-        active_text_input->serial++;
         zwp_text_input_v3_send_done(active_text_input->resource,
                                      active_text_input->serial);
         LOGD("Committed text via text-input-v3 (%zu bytes)", strlen(text));
@@ -875,15 +966,15 @@ static uint32_t utf8_delete_bytes_after(const char *text, size_t cursor,
     return (uint32_t)(pos - cursor);
 }
 
-static void text_input_delete_byte_counts(struct text_input *ti,
+static bool text_input_delete_byte_counts(struct text_input *ti,
                                           uint32_t before_length,
                                           uint32_t after_length,
                                           bool code_points,
                                           uint32_t *before_bytes,
                                           uint32_t *after_bytes) {
-    *before_bytes = before_length;
-    *after_bytes = after_length;
-    if (!ti || !ti->surrounding_text) return;
+    *before_bytes = 0;
+    *after_bytes = 0;
+    if (!ti || !ti->surrounding_text) return false;
 
     size_t len = strlen(ti->surrounding_text);
     size_t cursor = ti->surrounding_cursor < 0 ? 0 : (size_t)ti->surrounding_cursor;
@@ -893,6 +984,7 @@ static void text_input_delete_byte_counts(struct text_input *ti,
         ti->surrounding_text, cursor, before_length, code_points);
     *after_bytes = utf8_delete_bytes_after(
         ti->surrounding_text, cursor, after_length, code_points);
+    return true;
 }
 
 static void dispatch_delete_surrounding_text(struct compositor_server *server,
@@ -904,23 +996,28 @@ static void dispatch_delete_surrounding_text(struct compositor_server *server,
     if (before_length == 0 && after_length == 0) return;
 
     if (active_text_input && active_text_input->current_enabled) {
-        uint32_t before_bytes = before_length;
-        uint32_t after_bytes = after_length;
-        text_input_delete_byte_counts(active_text_input, before_length, after_length,
-                                      code_points, &before_bytes, &after_bytes);
-        if (before_bytes == 0 && after_bytes == 0) return;
-        zwp_text_input_v3_send_delete_surrounding_text(
-            active_text_input->resource, before_bytes, after_bytes);
-        active_text_input->serial++;
-        zwp_text_input_v3_send_done(active_text_input->resource,
-                                     active_text_input->serial);
-        LOGD("Deleted surrounding text via text-input-v3 (%u/%u bytes before, %u/%u bytes after)",
-             before_bytes, before_length, after_bytes, after_length);
-    } else {
-        emit_delete_keys(server, before_length, after_length);
-        LOGD("Deleted surrounding text via synthetic keys (%u before, %u after)",
-             before_length, after_length);
+        uint32_t before_bytes = 0;
+        uint32_t after_bytes = 0;
+        bool has_surrounding_text = text_input_delete_byte_counts(
+            active_text_input, before_length, after_length, code_points,
+            &before_bytes, &after_bytes);
+        if (has_surrounding_text) {
+            if (before_bytes == 0 && after_bytes == 0) return;
+            zwp_text_input_v3_send_delete_surrounding_text(
+                active_text_input->resource, before_bytes, after_bytes);
+            zwp_text_input_v3_send_done(active_text_input->resource,
+                                         active_text_input->serial);
+            LOGD("Deleted surrounding text via text-input-v3 (%u/%u bytes before, %u/%u bytes after)",
+                 before_bytes, before_length, after_bytes, after_length);
+            return;
+        }
+
+        LOGD("No committed surrounding text available; falling back to synthetic delete keys");
     }
+
+    emit_delete_keys(server, before_length, after_length);
+    LOGD("Deleted surrounding text via synthetic keys (%u before, %u after)",
+         before_length, after_length);
 }
 
 static bool enqueue_text_op(struct pending_text_op *op) {
