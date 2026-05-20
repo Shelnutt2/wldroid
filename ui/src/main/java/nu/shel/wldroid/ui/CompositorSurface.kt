@@ -1,6 +1,7 @@
 package nu.shel.wldroid.ui
 
 import android.content.Context
+import android.os.SystemClock
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -28,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -153,7 +155,7 @@ fun CompositorSurface(
         surfaceState.setKeyboardVisible(imeBottomInset > 0)
     }
 
-    LaunchedEffect(surfaceViewRef) {
+    LaunchedEffect(surfaceViewRef, keyboardController) {
         onKeyboardControllerChange(if (surfaceViewRef != null) keyboardController else null)
     }
 
@@ -161,6 +163,8 @@ fun CompositorSurface(
         keyboardController.restartInput()
         if (!inputMode.hasKeyboardInput) {
             keyboardController.hide(notifyNative = true)
+        } else if (surfaceViewRef != null && surfaceState.session.input.hasActiveTextInput()) {
+            keyboardController.show(notifyNative = true)
         }
     }
 
@@ -173,7 +177,7 @@ fun CompositorSurface(
     }
 
     // Start the IME pipe reader when the compositor is running.
-    LaunchedEffect(compositorState) {
+    LaunchedEffect(surfaceState, compositorState) {
         if (compositorState == CompositorState.RUNNING) {
             launch(Dispatchers.IO) {
                 readImePipe(
@@ -185,13 +189,15 @@ fun CompositorSurface(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        CompositorAndroidView(
-            surfaceState = surfaceState,
-            inputMode = inputMode,
-            enableViewportGestures = enableViewportGestures,
-            onViewChanged = { surfaceViewRef = it },
-            modifier = Modifier.fillMaxSize(),
-        )
+        key(surfaceState) {
+            CompositorAndroidView(
+                surfaceState = surfaceState,
+                inputMode = inputMode,
+                enableViewportGestures = enableViewportGestures,
+                onViewChanged = { surfaceViewRef = it },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         if (showKeyboardFab) {
             KeyboardToggleFab(
@@ -220,7 +226,7 @@ private fun CompositorAndroidView(
 ) {
     val viewport by surfaceState.viewport.collectAsState()
 
-    DisposableEffect(Unit) {
+    DisposableEffect(surfaceState) {
         onDispose {
             surfaceState.session.stop()
             onViewChanged(null)
@@ -308,6 +314,14 @@ private class CompositorSurfaceView(
 ) : SurfaceView(context) {
 
     var inputMode: InputMode = inputMode
+        set(value) {
+            val cancelTouches = field.hasTouchInput && !value.hasTouchInput
+            field = value
+            if (cancelTouches) {
+                cancelForwardedTouches(SystemClock.uptimeMillis())
+                endHostGesture(suppressUntilUp = false)
+            }
+        }
     var enableViewportGestures: Boolean = enableViewportGestures
 
     private val input: CompositorInput

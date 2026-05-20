@@ -41,6 +41,10 @@ void input_handler_send_touch_up(struct compositor_server *server,
                                  int32_t touch_id,
                                  uint32_t timestamp_msec);
 
+void input_handler_send_touch_cancel(struct compositor_server *server,
+                                     int32_t touch_id,
+                                     uint32_t timestamp_msec);
+
 void input_handler_send_pointer_motion(struct compositor_server *server,
                                        double x, double y,
                                        uint32_t timestamp_msec);

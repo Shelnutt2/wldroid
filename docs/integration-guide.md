@@ -311,12 +311,21 @@ class DesktopActivity : ComponentActivity() {
                 val envs = registry.environments.first()
                 val env = if (envs.isEmpty()) {
                     status = "Creating environment..."
-                    registry.create(
+                    val progress = registry.create(
                         EnvironmentConfig(
                             name = "Desktop",
                             distro = DistroTemplate.DEBIAN_TRIXIE,
                         )
                     )
+                    val finalProgress = progress.first {
+                        it.state == EnvironmentState.IDLE || it.state == EnvironmentState.ERROR
+                    }
+                    check(finalProgress.state == EnvironmentState.IDLE) {
+                        finalProgress.message.ifBlank { "Environment creation failed" }
+                    }
+                    registry.environments.first { list ->
+                        list.any { it.name == "Desktop" }
+                    }.first { it.name == "Desktop" }
                 } else {
                     envs.first()
                 }

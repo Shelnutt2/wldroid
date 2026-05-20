@@ -47,6 +47,7 @@ enum input_event_type {
     INPUT_TOUCH_DOWN,
     INPUT_TOUCH_MOTION,
     INPUT_TOUCH_UP,
+    INPUT_TOUCH_CANCEL,
     INPUT_POINTER_MOTION,
     INPUT_POINTER_BUTTON,
     INPUT_POINTER_SCROLL,
@@ -294,6 +295,16 @@ static void dispatch_touch_up(struct compositor_server *server,
     wlr_seat_touch_notify_frame(server->seat);
 }
 
+static void dispatch_touch_cancel(struct compositor_server *server,
+                                  const struct input_event *ev) {
+    struct wlr_touch_point *point =
+        wlr_seat_touch_get_point(server->seat, ev->touch.id);
+    if (!point || !point->client) return;
+
+    wlr_seat_touch_notify_cancel(server->seat, point->client);
+    wlr_seat_touch_notify_frame(server->seat);
+}
+
 static void dispatch_pointer_motion(struct compositor_server *server,
                                     const struct input_event *ev) {
     double sx, sy;
@@ -387,6 +398,10 @@ static int on_input_event(int fd, uint32_t mask, void *data) {
         case INPUT_TOUCH_UP:
             wlr_log(WLR_INFO, "on_input_event: TOUCH_UP id=%d x=%.0f y=%.0f", ev->touch.id, ev->touch.x, ev->touch.y);
             dispatch_touch_up(server, ev);
+            break;
+        case INPUT_TOUCH_CANCEL:
+            wlr_log(WLR_INFO, "on_input_event: TOUCH_CANCEL id=%d", ev->touch.id);
+            dispatch_touch_cancel(server, ev);
             break;
         case INPUT_POINTER_MOTION:  dispatch_pointer_motion(server, ev); break;
         case INPUT_POINTER_BUTTON:  dispatch_pointer_button(server, ev); break;
@@ -564,6 +579,23 @@ void input_handler_send_touch_up(struct compositor_server *server,
         return;
     }
     ev->type = INPUT_TOUCH_UP;
+    ev->timestamp_msec = timestamp_msec;
+    ev->touch.id = touch_id;
+    ev->touch.x = 0;
+    ev->touch.y = 0;
+    ring_commit();
+    wake_compositor(server);
+}
+
+void input_handler_send_touch_cancel(struct compositor_server *server,
+                                     int32_t touch_id,
+                                     uint32_t timestamp_msec) {
+    struct input_event *ev = ring_reserve();
+    if (!ev) {
+        LOGW("Input ring full — dropping touch cancel");
+        return;
+    }
+    ev->type = INPUT_TOUCH_CANCEL;
     ev->timestamp_msec = timestamp_msec;
     ev->touch.id = touch_id;
     ev->touch.x = 0;

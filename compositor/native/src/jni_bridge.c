@@ -284,7 +284,7 @@ static void native_send_touch_event(JNIEnv *env, jobject thiz,
         input_handler_send_touch_motion(g_server, id, (double)x, (double)y, ts);
         break;
     case ANDROID_ACTION_CANCEL:
-        input_handler_send_touch_up(g_server, id, ts);
+        input_handler_send_touch_cancel(g_server, id, ts);
         break;
     }
 
